@@ -1,0 +1,400 @@
+{
+    "id": "089ce56e-1695-49e8-aaa4-ee17dc4e8513",
+    "financialAccountId": "ea9398ea-5039-4a77-85c5-dc291236461b",
+    "status": "AwaitingReview",
+    "message": "OCR completed successfully",
+    "fileName": "20260515160730_994c900dac6f4c6996cf5728515918f2.jpg",
+    "originalFileName": "images (2).jpg",
+    "storedFilePath": "/app/Personal_Finance_Management/Personal_Finance_Management.Service/import/Upload/20260515160730_994c900dac6f4c6996cf5728515918f2.jpg",
+    "contentType": "image/jpeg",
+    "sizeInBytes": 7382,
+    "ocrJsonFileName": "20260515160730_994c900dac6f4c6996cf5728515918f2_ocr.json",
+    "storedOcrJsonPath": "/app/Personal_Finance_Management/Personal_Finance_Management.Service/import/Upload/OcrResponses/20260515160730_994c900dac6f4c6996cf5728515918f2_ocr.json",
+    "rawOcrJson": null,
+    "ocrResult": null,
+    "receipt": {
+        "isSuccess": true,
+        "totalAmount": 55000,
+        "totalRawText": "55,000",
+        "totalLine": {
+            "index": 4,
+            "text": "Total 55,000",
+            "x": 38,
+            "y": 126,
+            "width": 92,
+            "height": 17,
+            "blocks": [
+                {
+                    "text": "Total",
+                    "x": 38,
+                    "y": 126,
+                    "width": 32,
+                    "height": 15,
+                    "confidence": 1,
+                    "pageNumber": 1,
+                    "right": 70,
+                    "bottom": 141,
+                    "centerY": 133.5
+                },
+                {
+                    "text": "55,000",
+                    "x": 93,
+                    "y": 127,
+                    "width": 37,
+                    "height": 16,
+                    "confidence": 1,
+                    "pageNumber": 1,
+                    "right": 130,
+                    "bottom": 143,
+                    "centerY": 135
+                }
+            ]
+        },
+        "transactionDate": null,
+        "transactionDateRawText": null,
+        "merchantName": "Recerption",
+        "suggestedCategoryId": null,
+        "suggestedCategoryName": null,
+        "categoryMatchedBy": null,
+        "lines": [
+            {
+                "index": 0,
+                "text": "Recerption",
+                "x": 36,
+                "y": 61,
+                "width": 80,
+                "height": 14,
+                "blocks": [
+                    {
+                        "text": "Recerption",
+                        "x": 36,
+                        "y": 61,
+                        "width": 80,
+                        "height": 14,
+                        "confidence": 1,
+                        "pageNumber": 1,
+                        "right": 116,
+                        "bottom": 75,
+                        "centerY": 68
+                    }
+                ]
+            },
+            {
+                "index": 1,
+                "text": "1910",
+                "x": 28,
+                "y": 75,
+                "width": 47,
+                "height": 18,
+                "blocks": [
+                    {
+                        "text": "1910",
+                        "x": 28,
+                        "y": 75,
+                        "width": 47,
+                        "height": 18,
+                        "confidence": 1,
+                        "pageNumber": 1,
+                        "right": 75,
+                        "bottom": 93,
+                        "centerY": 84
+                    }
+                ]
+            },
+            {
+                "index": 2,
+                "text": "TEES",
+                "x": 31,
+                "y": 90,
+                "width": 54,
+                "height": 22,
+                "blocks": [
+                    {
+                        "text": "TEES",
+                        "x": 31,
+                        "y": 90,
+                        "width": 54,
+                        "height": 22,
+                        "confidence": 1,
+                        "pageNumber": 1,
+                        "right": 85,
+                        "bottom": 112,
+                        "centerY": 101
+                    }
+                ]
+            },
+            {
+                "index": 3,
+                "text": "LIVIS Mas 19",
+                "x": 39,
+                "y": 104,
+                "width": 90,
+                "height": 22,
+                "blocks": [
+                    {
+                        "text": "LIVIS",
+                        "x": 39,
+                        "y": 112,
+                        "width": 28,
+                        "height": 11,
+                        "confidence": 1,
+                        "pageNumber": 1,
+                        "right": 67,
+                        "bottom": 123,
+                        "centerY": 117.5
+                    },
+                    {
+                        "text": "Mas",
+                        "x": 108,
+                        "y": 104,
+                        "width": 19,
+                        "height": 13,
+                        "confidence": 1,
+                        "pageNumber": 1,
+                        "right": 127,
+                        "bottom": 117,
+                        "centerY": 110.5
+                    },
+                    {
+                        "text": "19",
+                        "x": 111,
+                        "y": 114,
+                        "width": 18,
+                        "height": 12,
+                        "confidence": 1,
+                        "pageNumber": 1,
+                        "right": 129,
+                        "bottom": 126,
+                        "centerY": 120
+                    }
+                ]
+            },
+            {
+                "index": 4,
+                "text": "Total 55,000",
+                "x": 38,
+                "y": 126,
+                "width": 92,
+                "height": 17,
+                "blocks": [
+                    {
+                        "text": "Total",
+                        "x": 38,
+                        "y": 126,
+                        "width": 32,
+                        "height": 15,
+                        "confidence": 1,
+                        "pageNumber": 1,
+                        "right": 70,
+                        "bottom": 141,
+                        "centerY": 133.5
+                    },
+                    {
+                        "text": "55,000",
+                        "x": 93,
+                        "y": 127,
+                        "width": 37,
+                        "height": 16,
+                        "confidence": 1,
+                        "pageNumber": 1,
+                        "right": 130,
+                        "bottom": 143,
+                        "centerY": 135
+                    }
+                ]
+            },
+            {
+                "index": 5,
+                "text": "BELLING HEED 1009",
+                "x": 19,
+                "y": 144,
+                "width": 115,
+                "height": 51,
+                "blocks": [
+                    {
+                        "text": "BELLING",
+                        "x": 19,
+                        "y": 148,
+                        "width": 115,
+                        "height": 47,
+                        "confidence": 1,
+                        "pageNumber": 1,
+                        "right": 134,
+                        "bottom": 195,
+                        "centerY": 171.5
+                    },
+                    {
+                        "text": "HEED",
+                        "x": 59,
+                        "y": 145,
+                        "width": 19,
+                        "height": 7,
+                        "confidence": 1,
+                        "pageNumber": 1,
+                        "right": 78,
+                        "bottom": 152,
+                        "centerY": 148.5
+                    },
+                    {
+                        "text": "1009",
+                        "x": 110,
+                        "y": 144,
+                        "width": 21,
+                        "height": 11,
+                        "confidence": 1,
+                        "pageNumber": 1,
+                        "right": 131,
+                        "bottom": 155,
+                        "centerY": 149.5
+                    }
+                ]
+            },
+            {
+                "index": 6,
+                "text": "NGUYỄN THỊ THỊ THỊ THỊ THỊ THỊ THỊ THỊ THỊ THỊ THỊ THỊ THỊ THỊ THỊ THỊ TH ANTICATIONALIST",
+                "x": 35,
+                "y": 188,
+                "width": 75,
+                "height": 16,
+                "blocks": [
+                    {
+                        "text": "NGUYỄN THỊ THỊ THỊ THỊ THỊ THỊ THỊ THỊ THỊ THỊ THỊ THỊ THỊ THỊ THỊ THỊ TH",
+                        "x": 35,
+                        "y": 193,
+                        "width": 75,
+                        "height": 11,
+                        "confidence": 1,
+                        "pageNumber": 1,
+                        "right": 110,
+                        "bottom": 204,
+                        "centerY": 198.5
+                    },
+                    {
+                        "text": "ANTICATIONALIST",
+                        "x": 37,
+                        "y": 188,
+                        "width": 70,
+                        "height": 7,
+                        "confidence": 1,
+                        "pageNumber": 1,
+                        "right": 107,
+                        "bottom": 195,
+                        "centerY": 191.5
+                    }
+                ]
+            },
+            {
+                "index": 7,
+                "text": "0010000000000111 Nhưng cho trong cho trong ngay",
+                "x": 25,
+                "y": 205,
+                "width": 105,
+                "height": 24,
+                "blocks": [
+                    {
+                        "text": "0010000000000111",
+                        "x": 25,
+                        "y": 205,
+                        "width": 98,
+                        "height": 14,
+                        "confidence": 1,
+                        "pageNumber": 1,
+                        "right": 123,
+                        "bottom": 219,
+                        "centerY": 212
+                    },
+                    {
+                        "text": "Nhưng cho trong cho trong ngay",
+                        "x": 25,
+                        "y": 214,
+                        "width": 105,
+                        "height": 15,
+                        "confidence": 1,
+                        "pageNumber": 1,
+                        "right": 130,
+                        "bottom": 229,
+                        "centerY": 221.5
+                    }
+                ]
+            },
+            {
+                "index": 8,
+                "text": "001000000100",
+                "x": 19,
+                "y": 229,
+                "width": 113,
+                "height": 15,
+                "blocks": [
+                    {
+                        "text": "001000000100",
+                        "x": 19,
+                        "y": 229,
+                        "width": 113,
+                        "height": 15,
+                        "confidence": 1,
+                        "pageNumber": 1,
+                        "right": 132,
+                        "bottom": 244,
+                        "centerY": 236.5
+                    }
+                ]
+            },
+            {
+                "index": 9,
+                "text": "001000000100",
+                "x": 39,
+                "y": 241,
+                "width": 91,
+                "height": 11,
+                "blocks": [
+                    {
+                        "text": "001000000100",
+                        "x": 39,
+                        "y": 241,
+                        "width": 91,
+                        "height": 11,
+                        "confidence": 1,
+                        "pageNumber": 1,
+                        "right": 130,
+                        "bottom": 252,
+                        "centerY": 246.5
+                    }
+                ]
+            }
+        ],
+        "warnings": [
+            "Could not extract transaction date from receipt OCR lines.",
+            "Could not suggest category from merchant dictionary."
+        ]
+    },
+    "preview": {
+        "id": "20260515160730_994c900dac6f4c6996cf5728515918f2",
+        "status": "success",
+        "imageUrl": "/api/v1/imports/images/20260515160730_994c900dac6f4c6996cf5728515918f2.jpg",
+        "transaction": {
+            "merchantName": "Recerption",
+            "amount": 55000,
+            "date": null,
+            "type": "Expense",
+            "suggestedCategoryId": null,
+            "suggestedCategoryName": null,
+            "matchedBy": null,
+            "note": "Hoa don Recerption"
+        },
+        "items": [
+            {
+                "name": "Total",
+                "amount": 55000
+            }
+        ],
+        "summary": {
+            "subtotal": 55000,
+            "discount": null,
+            "total": 55000
+        },
+        "warnings": [
+            "Could not extract transaction date from receipt OCR lines.",
+            "Could not suggest category from merchant dictionary."
+        ]
+    }
+}

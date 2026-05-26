@@ -1,0 +1,112 @@
+/* ── Neubrutalist finance dashboard ── */
+.brutal-dashboard {
+  --brutal-bg: #f4f4f5;
+  --brutal-ink: #0a0a0a;
+  --brutal-border: 2px solid #0a0a0a;
+  --brutal-shadow: 4px 4px 0 0 #0a0a0a;
+  --brutal-shadow-sm: 3px 3px 0 0 #0a0a0a;
+  --brutal-green: #a8e087;
+  --brutal-purple: #a5a6f6;
+  --brutal-radius: 16px;
+  background: var(--brutal-bg);
+  color: var(--brutal-ink);
+}
+
+.brutal-card {
+  border: var(--brutal-border);
+  border-radius: var(--brutal-radius);
+  background: #fff;
+  box-shadow: var(--brutal-shadow);
+}
+
+.brutal-card-flat {
+  border: var(--brutal-border);
+  border-radius: var(--brutal-radius);
+  background: #fff;
+}
+
+.brutal-metric-green {
+  border: var(--brutal-border);
+  border-radius: var(--brutal-radius);
+  background: var(--brutal-green);
+  box-shadow: var(--brutal-shadow);
+}
+
+.brutal-metric-purple {
+  border: var(--brutal-border);
+  border-radius: var(--brutal-radius);
+  background: var(--brutal-purple);
+  box-shadow: var(--brutal-shadow);
+}
+
+.brutal-metric-dark {
+  border: var(--brutal-border);
+  border-radius: var(--brutal-radius);
+  background: var(--brutal-ink);
+  color: #fff;
+  box-shadow: var(--brutal-shadow);
+}
+
+.brutal-pill {
+  border: var(--brutal-border);
+  border-radius: 9999px;
+  background: #fff;
+  box-shadow: var(--brutal-shadow-sm);
+}
+
+.brutal-pill-active {
+  border: var(--brutal-border);
+  border-radius: 9999px;
+  background: var(--brutal-ink);
+  color: #fff;
+}
+
+.brutal-icon-btn {
+  display: flex;
+  height: 2.5rem;
+  width: 2.5rem;
+  align-items: center;
+  justify-content: center;
+  border: var(--brutal-border);
+  border-radius: 9999px;
+  background: #fff;
+  box-shadow: var(--brutal-shadow-sm);
+  transition: transform 0.1s ease;
+}
+
+.brutal-icon-btn:hover {
+  transform: translate(-1px, -1px);
+  box-shadow: 5px 5px 0 0 #0a0a0a;
+}
+
+.brutal-search {
+  border: var(--brutal-border);
+  border-radius: 9999px;
+  background: #fff;
+  box-shadow: var(--brutal-shadow-sm);
+}
+
+.brutal-row {
+  border: var(--brutal-border);
+  border-radius: 9999px;
+  background: #fff;
+}
+
+.brutal-pl-card {
+  border: var(--brutal-border);
+  border-radius: var(--brutal-radius);
+  background: var(--brutal-ink);
+  color: #fff;
+  box-shadow: var(--brutal-shadow);
+}
+
+.brutal-tab-active::after {
+  content: "";
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  height: 3px;
+  border-radius: 2px;
+  background: var(--brutal-ink);
+}

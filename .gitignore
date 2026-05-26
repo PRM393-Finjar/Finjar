@@ -1,0 +1,43 @@
+# OS / editor
+.DS_Store
+Thumbs.db
+*.swp
+.idea/
+.vscode/*
+!.vscode/extensions.json
+
+# Secrets
+.env
+.env.*
+!.env.example
+*.local
+
+# Frontend (FE_QLTC)
+node_modules/
+dist/
+dist-ssr/
+npm-debug.log*
+yarn-debug.log*
+pnpm-debug.log*
+FE_QLTC/swagger-v1.json
+FE_QLTC/e2e-*.json
+
+# Backend (.NET)
+**/bin/
+**/obj/
+**/[Bb]in/
+**/[Oo]bj/
+**/[Ll]og/
+**/[Ll]ogs/
+*.user
+*.suo
+*.cache
+*.nupkg
+*.snupkg
+project.lock.json
+artifacts/
+*.binlog
+**/__pycache__/
+**/.venv/
+Personal_Finance_App_Be-main/**/appsettings.Development.json
+Personal_Finance_App_Be-main/**/appsettings.json
