@@ -140,9 +140,10 @@ Tham chiếu `FE_QLTC/src/shared/constants/apiEndpoint.ts`:
 | **B** | Transactions & Dashboard | 4 | Luồng chính sau đăng nhập |
 | **C** | Tài khoản, hũ, ngân sách, danh mục | 4 | CRUD + form |
 | **D** | Mục tiêu, nhắc nhở, thông báo, hồ sơ | 4 | List + pagination |
-| **E** | OCR import + màn lỗi + **điều phối** QA | **4** | OCR + Unauthorized/NotFound; smoke cuối sprint |
+| **E** | OCR import + màn lỗi + **điều phối** QA | **3** | OCR + Unauthorized/NotFound; smoke cuối sprint |
 
-> **Cân bằng A ↔ E (đã chỉnh):** A bớt 1 màn UI (`Unauthorized` → E), tập trung nền tảng + review; E tăng lên 4 màn (cùng mức B/C/D), QA **chia cho cả nhóm** — E chỉ giữ checklist tích hợp cuối sprint, không fix conflict thay người khác.
+> **Tổng màn UI:** 3 + 4 + 4 + 4 + 3 = **18** (cột “+ core” của A là scaffold/router/theme, **không** tính thêm màn).  
+> **Cân bằng A ↔ E (đã chỉnh):** A bớt `Unauthorized` → E; E có **3 màn** (không phải 4). QA **chia cho cả nhóm** — E chỉ giữ checklist cuối sprint.
 
 ---
 
@@ -232,9 +233,9 @@ Tham chiếu `FE_QLTC/src/shared/constants/apiEndpoint.ts`:
 
 ---
 
-### Người E — Import, màn lỗi & QA (4 màn)
+### Người E — Import, màn lỗi & QA (3 màn)
 
-**Màn hình:** 8 OCR Import, 17 Unauthorized, 18 Not Found (+ route fallback `go_router`)
+**Màn hình:** 8 OCR Import, 17 Unauthorized, 18 Not Found (+ route fallback `go_router` — không tính thêm màn)
 
 **Task chi tiết — UI & API:**
 
