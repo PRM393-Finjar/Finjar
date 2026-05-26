@@ -136,33 +136,43 @@ Tham chiếu `FE_QLTC/src/shared/constants/apiEndpoint.ts`:
 
 | Người | Vai trò | Số màn | Ưu tiên tuần 1 |
 |-------|---------|--------|----------------|
-| **A** | Tech lead — scaffold, auth, routing, theme | 4 + core | Setup repo, CI, merge gate |
+| **A** | Tech lead — **core** (scaffold, API, router, theme) + auth | **3** + core | Setup repo, merge `develop`; **không** code feature mới từ tuần 2 |
 | **B** | Transactions & Dashboard | 4 | Luồng chính sau đăng nhập |
 | **C** | Tài khoản, hũ, ngân sách, danh mục | 4 | CRUD + form |
 | **D** | Mục tiêu, nhắc nhở, thông báo, hồ sơ | 4 | List + pagination |
-| **E** | OCR import + lỗi + QA tích hợp | 2 + hỗ trợ | E2E smoke, fix conflict |
+| **E** | OCR import + màn lỗi + **điều phối** QA | **4** | OCR + Unauthorized/NotFound; smoke cuối sprint |
+
+> **Cân bằng A ↔ E (đã chỉnh):** A bớt 1 màn UI (`Unauthorized` → E), tập trung nền tảng + review; E tăng lên 4 màn (cùng mức B/C/D), QA **chia cho cả nhóm** — E chỉ giữ checklist tích hợp cuối sprint, không fix conflict thay người khác.
 
 ---
 
-### Người A — Core & Auth (4 màn + nền tảng)
+### Người A — Core & Auth (3 màn + nền tảng)
 
-**Màn hình:** 1 Login, 2 Register, 3 Onboarding, 17 Unauthorized  
+**Màn hình:** 1 Login, 2 Register, 3 Onboarding  
 
-**Task chi tiết:**
+**Task chi tiết — Sprint 1 (bắt buộc xong trước nhóm):**
 
 - [ ] Khởi tạo project Flutter, `pubspec`, folder `features/`
 - [ ] `api_client.dart` + lưu token `flutter_secure_storage`
-- [ ] `go_router`: redirect nếu chưa login → Login; chưa onboarding → Onboarding
-- [ ] `LoginScreen` + `RegisterScreen` (gọi `auth/login`, `auth/register`)
-- [ ] Sau login: `GET user/me` — nếu cần setup → Onboarding
+- [ ] `go_router`: redirect chưa login → Login; chưa onboarding → Onboarding
+- [ ] `LoginScreen` + `RegisterScreen` (`auth/login`, `auth/register`)
+- [ ] Sau login: `GET user/me` → nếu cần setup → Onboarding
 - [ ] `OnboardingScreen` — `POST onboarding`
-- [ ] `UnauthorizedScreen`
-- [ ] Theme brutal dùng chung (`BrutalTheme`, colors, typography)
-- [ ] Viết `README` setup máy dev + chạy BE local
+- [ ] Theme brutal dùng chung (`BrutalTheme`, colors, typography, widget `BrutalButton`/`BrutalCard`)
+- [ ] `README` setup máy dev + chạy BE local
+- [ ] Nhánh `develop`, quy tắc PR (template ngắn)
+
+**Task chi tiết — Sprint 2–3 (không thêm màn mới):**
+
+- [ ] Review + merge PR B/C/D/E (tối đa 1h/ngày)
+- [ ] Chỉ sửa `core/`, `router`, `theme` khi có breaking change — báo trên group trước khi merge
+- [ ] Hỗ trợ tích hợp bottom nav / shell layout (phối hợp B)
+
+**Không thuộc A:** `UnauthorizedScreen`, `NotFoundScreen`, OCR (→ E).
 
 **Nhánh Git:** `feature/core-auth-onboarding`
 
-**Definition of Done (DoD):** Đăng nhập thật với BE local, token persist, điều hướng đúng 3 màn auth.
+**Definition of Done (DoD):** Đăng nhập thật với BE local, token persist, điều hướng đúng 3 màn auth; B/C/D/E clone được và chạy `flutter run` không cần sửa core.
 
 ---
 
@@ -222,21 +232,35 @@ Tham chiếu `FE_QLTC/src/shared/constants/apiEndpoint.ts`:
 
 ---
 
-### Người E — Import & hoàn thiện (2 màn + QA)
+### Người E — Import, màn lỗi & QA (4 màn)
 
-**Màn hình:** 8 OCR Import, 18 Not Found  
+**Màn hình:** 8 OCR Import, 17 Unauthorized, 18 Not Found (+ route fallback `go_router`)
 
-**Task chi tiết:**
+**Task chi tiết — UI & API:**
 
-- [ ] `OcrImportScreen` — chọn ảnh (`image_picker`), `POST imports/image`, confirm draft
-- [ ] `NotFoundScreen` + route fallback `go_router`
-- [ ] Smoke test toàn app sau mỗi sprint merge `develop`
-- [ ] Checklist regression (bảng cuối file)
-- [ ] Hỗ trợ review PR của A–D
+- [ ] `OcrImportScreen` — `image_picker`, `POST imports/image`, confirm draft
+- [ ] `UnauthorizedScreen` — nút quay Dashboard/Login (theo web)
+- [ ] `NotFoundScreen` — route `*` / unknown path
+- [ ] Đăng ký 3 route trên `go_router` (phối hợp A sau khi core merge)
 
-**Nhánh Git:** `feature/ocr-import-notfound`
+**Task chi tiết — QA (chia nhóm, không gánh một mình):**
 
-**DoD:** Upload ảnh hóa đơn → tạo draft giao dịch; route sai → NotFound.
+| Ai | Trách nhiệm test |
+|----|------------------|
+| **B** | Smoke: Dashboard → Transactions → Add |
+| **C** | Smoke: Accounts → Jars → Budget |
+| **D** | Smoke: Goals → Notifications → Profile → Logout |
+| **E** | Chạy **checklist mục 6** cuối Sprint 3; ghi bug lên Issues |
+| **A** | `flutter analyze` + merge gate trước khi vào `develop` |
+
+- [ ] Mỗi người tự fix conflict trong `lib/features/<module của mình>/` trước khi nhờ review
+- [ ] E **không** sửa code feature của B/C/D — chỉ mở issue hoặc comment PR
+
+**Phụ thuộc:** A merge `core` trước; E rebase và thêm route lỗi/OCR.
+
+**Nhánh Git:** `feature/ocr-and-error-screens`
+
+**DoD:** OCR upload → draft; route sai → NotFound; user không đủ quyền → Unauthorized; checklist mục 6 pass trên build `develop`.
 
 ---
 
@@ -244,9 +268,9 @@ Tham chiếu `FE_QLTC/src/shared/constants/apiEndpoint.ts`:
 
 | Sprint | Mục tiêu | Người |
 |--------|---------|-------|
-| **S1** | Scaffold + Auth + Router + Theme | A (xong trước), B/C/D/E setup branch |
-| **S2** | 4 màn / người (B,C,D,E song song) | B, C, D, E |
-| **S3** | Tích hợp nav, fix bug, polish UI, demo | Cả nhóm |
+| **S1** | Scaffold + Auth + Router + Theme | **A** (xong trước ngày 3), B/C/D/E setup branch |
+| **S2** | 4 màn / người song song | B, C, D, **E** (OCR + Unauthorized + NotFound); **A** chỉ review/merge |
+| **S3** | Nav tích hợp, polish, demo | B/C/D/E code nhẹ; **E** chạy checklist; **A** merge `develop` → demo |
 
 **Daily:** 15 phút — blocker API / merge conflict.  
 **Review:** 1 PR / người / sprint, không merge trực tiếp `main`.
@@ -338,9 +362,10 @@ git push -u origin feature/ten-man-hinh
 | Quy tắc | Chi tiết |
 |---------|----------|
 | **Sở hữu thư mục** | Mỗi người chỉ sửa `lib/features/<module của mình>/` |
-| **File dùng chung** | `app_router.dart`, `theme` → chỉ A merge, người khác gửi issue cho A |
+| **File dùng chung** | `app_router.dart`, `theme` → **A** merge; route lỗi/OCR → **E** đề xuất diff, A review |
 | **Rebase thường xuyên** | Trước khi push: `git fetch && git rebase origin/develop` |
 | **PR nhỏ** | Ưu tiên 1 PR / 2–4 màn, không gộp cả sprint một PR |
+| **Conflict** | Tự resolve trong module của mình; không nhờ E/A sửa hộ |
 
 ### 5.6. Bảo mật khi push
 
@@ -365,7 +390,9 @@ git push -u origin release/1.0.0
 
 ---
 
-## 6. Checklist tích hợp (Người E + cả nhóm)
+## 6. Checklist tích hợp (E điều phối, cả nhóm thực hiện)
+
+**Sprint 3 — ngày cuối:** E chạy lần lượt, mỗi mục ghi Pass/Fail trên Issue. A xác nhận trước khi tag demo.
 
 Sau khi merge tất cả nhánh vào `develop`:
 
