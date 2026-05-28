@@ -12,42 +12,34 @@
 
 | Hạng mục | Mô tả |
 |----------|--------|
-| **MVP mobile** | 18 màn hình user (không gồm 6 màn admin — admin giữ trên web) |
+| **MVP mobile** | 10 màn hình user (rút gọn từ 18 màn, vẫn giữ core flow) |
 | **API** | Dùng chung BE với web: `http://<host>:5284/api/v1` |
 | **Auth** | JWT qua header `Authorization: Bearer <token>` (giống `FE_QLTC/src/lib/axios.ts`) |
 | **UI** | Neo-brutalism / brutal style tương tự web (border đậm, shadow cứng, màu tương phản) |
 
-### 18 màn hình (map từ `router.tsx`)
+### 10 màn hình MVP (gộp từ `router.tsx`, vẫn giữ core)
 
-| # | Màn hình Flutter | Route web | File web tham chiếu |
-|---|------------------|-----------|---------------------|
-| 1 | `LoginScreen` | `/login` | `features/auth/pages/LoginPage.tsx` |
-| 2 | `RegisterScreen` | `/register` | `features/auth/pages/RegisterPage.tsx` |
-| 3 | `OnboardingScreen` | `/onboarding` | `features/onboarding/pages/OnboardingPage.tsx` |
-| 4 | `DashboardScreen` | `/dashboard` | `features/dashboard/pages/DashboardPage.tsx` |
-| 5 | `TransactionsScreen` | `/transactions` | `features/transactions/pages/TransactionsPage.tsx` |
-| 6 | `AddTransactionScreen` | `/transactions/add` | `features/transactions/pages/AddTransactionPage.tsx` |
-| 7 | `TransactionDetailScreen` | `/transactions/:id` | `features/transactions/pages/TransactionDetailPage.tsx` |
-| 8 | `OcrImportScreen` | `/imports/ocr` | `features/imports/pages/OcrImportPage.tsx` |
-| 9 | `AccountsScreen` | `/accounts` | `features/financial-accounts/pages/AccountsPage.tsx` |
-| 10 | `JarsScreen` | `/jars` | `features/jars/pages/JarsPage.tsx` |
-| 11 | `BudgetScreen` | `/budget` | `features/budget/pages/BudgetPage.tsx` |
-| 12 | `CategoriesScreen` | `/categories` | `features/categories/pages/CategoriesPage.tsx` |
-| 13 | `RemindersScreen` | `/reminders` | `features/reminders/pages/RemindersPage.tsx` |
-| 14 | `GoalsScreen` | `/goals` | `shared/pages/UserGoalsPage.tsx` |
-| 15 | `NotificationsScreen` | `/notifications` | `shared/pages/UserNotificationsPage.tsx` |
-| 16 | `ProfileScreen` | `/profile` | `features/profile/pages/UserProfilePage.tsx` |
-| 17 | `UnauthorizedScreen` | `/unauthorized` | `shared/pages/UnauthorizedPage.tsx` |
-| 18 | `NotFoundScreen` | `*` | `shared/pages/NotFoundPage.tsx` |
+| # | Màn hình Flutter | Gộp từ route web | Ghi chú triển khai |
+|---|------------------|-------------------|--------------------|
+| 1 | `AuthScreen` | `/login`, `/register` | 2 tab Login/Register |
+| 2 | `OnboardingScreen` | `/onboarding` | Giữ nguyên |
+| 3 | `DashboardScreen` | `/dashboard` | Giữ nguyên |
+| 4 | `TransactionsScreen` | `/transactions`, `/transactions/add`, `/transactions/:id` | Add/Detail bằng sheet |
+| 5 | `WalletScreen` | `/accounts`, `/jars`, `/budget` | 3 tab: Accounts/Jars/Budget |
+| 6 | `CategoriesScreen` | `/categories` | Giữ nguyên |
+| 7 | `GoalsScreen` | `/goals` | Giữ nguyên |
+| 8 | `NotificationsScreen` | `/notifications` | Giữ nguyên |
+| 9 | `ProfileScreen` | `/profile` | Giữ nguyên |
+| 10 | `RemindersScreen` | `/reminders` | Giữ nguyên (MVP) |
 
-> **Ghi chú:** `/limits` trên web trùng `BudgetPage` — mobile chỉ cần một `BudgetScreen`.  
-> **Phase 2 (tùy chọn):** 6 màn admin (`/admin/*`) — không tính trong 18 màn MVP.
+> **Route không làm màn riêng ở MVP:** `/unauthorized`, `*` dùng `ErrorView` chung + `go_router` redirect.  
+> **Phase 2 (tùy chọn):** OCR (`/imports/ocr`) và 6 màn admin (`/admin/*`).
 
 ---
 
 ## 2. Cấu trúc repo Flutter đề xuất
 
-Tạo repo mới trên org (ví dụ `finjar-mobile`) hoặc thư mục `mobile/` trong monorepo:
+Tạo thư mục `mobile/` trong monorepo `Finjar` hoặc dùng repo riêng nếu nhóm muốn tách:
 
 ```
 finjar_mobile/
@@ -130,148 +122,154 @@ Tham chiếu `FE_QLTC/src/shared/constants/apiEndpoint.ts`:
 
 ---
 
-## 3. Phân công 5 người (18 màn hình)
+## 3. Phân công 5 người (MVP 10 màn)
 
 ### Vai trò tổng quan
 
-| Người | Vai trò | Số màn | Ưu tiên tuần 1 |
-|-------|---------|--------|----------------|
-| **A** | Tech lead — **core** (scaffold, API, router, theme) + auth | **3** + core | Setup repo, merge `develop`; **không** code feature mới từ tuần 2 |
-| **B** | Transactions & Dashboard | 4 | Luồng chính sau đăng nhập |
-| **C** | Tài khoản, hũ, ngân sách, danh mục | 4 | CRUD + form |
-| **D** | Mục tiêu, nhắc nhở, thông báo, hồ sơ | 4 | List + pagination |
-| **E** | OCR import + màn lỗi + **điều phối** QA | **3** | OCR + Unauthorized/NotFound; smoke cuối sprint |
+| Người | Vai trò | Scope chính | Ưu tiên tuần 1 |
+|-------|---------|-------------|----------------|
+| **A** | Tech lead + foundation | Core app + Auth + Onboarding | Khóa kiến trúc, unblock team |
+| **B** | Luồng giao dịch chính | Dashboard + Transactions | Luồng ghi nhận chi tiêu/thu nhập |
+| **C** | Ví & cấu hình tài chính | Wallet + Categories | CRUD tài khoản/hũ/ngân sách/danh mục |
+| **D** | Gắn kết người dùng | Goals + Notifications + Profile | Hoàn thiện vòng đời người dùng |
+| **E** | Ổn định tích hợp | Reminders + Error handling + QA điều phối | Dọn lỗi, test end-to-end |
 
-> **Tổng màn UI:** 3 + 4 + 4 + 4 + 3 = **18** (cột “+ core” của A là scaffold/router/theme, **không** tính thêm màn).  
-> **Cân bằng A ↔ E (đã chỉnh):** A bớt `Unauthorized` → E; E có **3 màn** (không phải 4). QA **chia cho cả nhóm** — E chỉ giữ checklist cuối sprint.
-
----
-
-### Người A — Core & Auth (3 màn + nền tảng)
-
-**Màn hình:** 1 Login, 2 Register, 3 Onboarding  
-
-**Task chi tiết — Sprint 1 (bắt buộc xong trước nhóm):**
-
-- [ ] Khởi tạo project Flutter, `pubspec`, folder `features/`
-- [ ] `api_client.dart` + lưu token `flutter_secure_storage`
-- [ ] `go_router`: redirect chưa login → Login; chưa onboarding → Onboarding
-- [ ] `LoginScreen` + `RegisterScreen` (`auth/login`, `auth/register`)
-- [ ] Sau login: `GET user/me` → nếu cần setup → Onboarding
-- [ ] `OnboardingScreen` — `POST onboarding`
-- [ ] Theme brutal dùng chung (`BrutalTheme`, colors, typography, widget `BrutalButton`/`BrutalCard`)
-- [ ] `README` setup máy dev + chạy BE local
-- [ ] Nhánh `develop`, quy tắc PR (template ngắn)
-
-**Task chi tiết — Sprint 2–3 (không thêm màn mới):**
-
-- [ ] Review + merge PR B/C/D/E (tối đa 1h/ngày)
-- [ ] Chỉ sửa `core/`, `router`, `theme` khi có breaking change — báo trên group trước khi merge
-- [ ] Hỗ trợ tích hợp bottom nav / shell layout (phối hợp B)
-
-**Không thuộc A:** `UnauthorizedScreen`, `NotFoundScreen`, OCR (→ E).
-
-**Nhánh Git:** `feature/core-auth-onboarding`
-
-**Definition of Done (DoD):** Đăng nhập thật với BE local, token persist, điều hướng đúng 3 màn auth; B/C/D/E clone được và chạy `flutter run` không cần sửa core.
+> **Tổng màn UI:** A(2) + B(2) + C(2) + D(3) + E(1) = **10 màn**.  
+> Chia theo **độ phức tạp**, không chia đều số lượng màn hình.
 
 ---
 
-### Người B — Dashboard & Giao dịch (4 màn)
+### Người A — Foundation + Auth/Onboarding (2 màn + nền tảng)
 
-**Màn hình:** 4 Dashboard, 5 Transactions, 6 Add Transaction, 7 Transaction Detail  
+**Màn hình:** `AuthScreen`, `OnboardingScreen`  
+**Nhánh:** `feature/foundation-auth-onboarding`
 
-**Task chi tiết:**
+**Phần việc chi tiết:**
 
-- [ ] `DashboardScreen` — `GET dashboard` (chart/summary theo web)
-- [ ] `TransactionsScreen` — list + filter + phân trang
-- [ ] `AddTransactionScreen` — `POST transactions`
-- [ ] `TransactionDetailScreen` — `GET/PATCH/DELETE transactions/:id`
-- [ ] Bottom nav hoặc drawer item "Giao dịch" / "Tổng quan" (phối hợp A)
+- [ ] Tạo project Flutter, folder chuẩn (`core`, `shared`, `features`), rule lint/format.
+- [ ] Thiết lập `Dio` + interceptor Bearer + xử lý `401` thống nhất.
+- [ ] Thiết lập `go_router` guard: chưa login -> Auth, chưa onboarding -> Onboarding.
+- [ ] Làm `AuthScreen` dạng tab (Login/Register), validate form, hiển thị lỗi API.
+- [ ] Làm `OnboardingScreen` (submit `POST onboarding`), chuyển `Dashboard` khi thành công.
+- [ ] Xây `BrutalTheme`, component dùng chung (`AppButton`, `AppInput`, `StateView`).
 
-**Phụ thuộc:** A merge `core` + router trước khi B rebase.
+**Expected output:**
 
-**Nhánh Git:** `feature/dashboard-transactions`
+- Team pull về chạy được ngay bằng 1 lệnh `flutter run`.
+- Các module khác chỉ cần gọi shared component, không tự tạo style riêng.
 
-**DoD:** CRUD giao dịch hoàn chỉnh, dashboard hiển thị số liệu từ API.
+**DoD:**
 
----
-
-### Người C — Tài chính & phân loại (4 màn)
-
-**Màn hình:** 9 Accounts, 10 Jars, 11 Budget, 12 Categories  
-
-**Task chi tiết:**
-
-- [ ] `AccountsScreen` — `financial-accounts` CRUD
-- [ ] `JarsScreen` — `jars` (phân bổ hũ)
-- [ ] `BudgetScreen` — `limits` (ngân sách/giới hạn)
-- [ ] `CategoriesScreen` — `categories` list (user)
-- [ ] Form validation, empty state, loading skeleton
-
-**Nhánh Git:** `feature/accounts-jars-budget-categories`
-
-**DoD:** Tạo/sửa/xóa tài khoản và hũ; budget hiển thị theo kỳ; danh mục load được.
+- Login/Register thật với BE local.
+- Restart app vẫn giữ session token.
+- B/C/D/E chạy nhánh riêng không cần sửa core.
 
 ---
 
-### Người D — Mục tiêu & người dùng (4 màn)
+### Người B — Dashboard + Transactions (2 màn core nặng)
 
-**Màn hình:** 13 Reminders, 14 Goals, 15 Notifications, 16 Profile  
+**Màn hình:** `DashboardScreen`, `TransactionsScreen`  
+**Nhánh:** `feature/dashboard-transactions`
 
-**Task chi tiết:**
+**Phần việc chi tiết:**
 
-- [ ] `RemindersScreen` — `reminders`
-- [ ] `GoalsScreen` — `goals` CRUD
-- [ ] `NotificationsScreen` — `notifications` + đánh dấu đã đọc (`PATCH`)
-- [ ] `ProfileScreen` — `user/me`, logout `auth/logout`
-- [ ] Pagination giống web (`pageIndex`, `pageSize`)
+- [ ] `DashboardScreen`: số dư tổng, thu/chi tháng, widget tóm tắt.
+- [ ] `TransactionsScreen`: list + filter (type/category/date) + phân trang.
+- [ ] Thêm/sửa/xóa giao dịch bằng `showModalBottomSheet` hoặc `DraggableScrollableSheet` (không tách route).
+- [ ] Đồng bộ dữ liệu: sau khi thêm/sửa giao dịch thì dashboard refresh.
+- [ ] Trạng thái loading/empty/error rõ ràng cho cả dashboard và transactions.
 
-**Nhánh Git:** `feature/goals-notifications-profile-reminders`
+**Expected output:**
 
-**DoD:** Profile hiển thị user; logout xóa token; notifications phân trang.
+- User mở app là thấy được tài chính tổng quan và ghi giao dịch nhanh trong 1 flow.
 
----
+**DoD:**
 
-### Người E — Import, màn lỗi & QA (3 màn)
-
-**Màn hình:** 8 OCR Import, 17 Unauthorized, 18 Not Found (+ route fallback `go_router` — không tính thêm màn)
-
-**Task chi tiết — UI & API:**
-
-- [ ] `OcrImportScreen` — `image_picker`, `POST imports/image`, confirm draft
-- [ ] `UnauthorizedScreen` — nút quay Dashboard/Login (theo web)
-- [ ] `NotFoundScreen` — route `*` / unknown path
-- [ ] Đăng ký 3 route trên `go_router` (phối hợp A sau khi core merge)
-
-**Task chi tiết — QA (chia nhóm, không gánh một mình):**
-
-| Ai | Trách nhiệm test |
-|----|------------------|
-| **B** | Smoke: Dashboard → Transactions → Add |
-| **C** | Smoke: Accounts → Jars → Budget |
-| **D** | Smoke: Goals → Notifications → Profile → Logout |
-| **E** | Chạy **checklist mục 6** cuối Sprint 3; ghi bug lên Issues |
-| **A** | `flutter analyze` + merge gate trước khi vào `develop` |
-
-- [ ] Mỗi người tự fix conflict trong `lib/features/<module của mình>/` trước khi nhờ review
-- [ ] E **không** sửa code feature của B/C/D — chỉ mở issue hoặc comment PR
-
-**Phụ thuộc:** A merge `core` trước; E rebase và thêm route lỗi/OCR.
-
-**Nhánh Git:** `feature/ocr-and-error-screens`
-
-**DoD:** OCR upload → draft; route sai → NotFound; user không đủ quyền → Unauthorized; checklist mục 6 pass trên build `develop`.
+- `GET dashboard`, `GET/POST/PATCH/DELETE transactions` chạy ổn.
+- Không crash khi đổi filter hoặc quay lại từ sheet.
 
 ---
 
-## 4. Lịch làm việc gợi ý (3 sprint × 1 tuần)
+### Người C — Wallet + Categories (2 màn)
+
+**Màn hình:** `WalletScreen`, `CategoriesScreen`  
+**Nhánh:** `feature/wallet-categories`
+
+**Phần việc chi tiết:**
+
+- [ ] `WalletScreen` với `TabBar`: Accounts / Jars / Budget.
+- [ ] CRUD Accounts (`financial-accounts`), Jars (`jars`), Budget (`limits`) theo từng tab.
+- [ ] `CategoriesScreen`: list + add/edit category dùng cho Transactions.
+- [ ] Rule dữ liệu: không cho xóa category đang được transaction sử dụng (nếu API trả lỗi, hiển thị message rõ).
+- [ ] Đồng bộ với B: form transaction lấy category/account từ dữ liệu C quản lý.
+
+**Expected output:**
+
+- Team có 1 điểm quản lý tài nguyên tài chính tập trung, không cần nhiều màn rời.
+
+**DoD:**
+
+- 3 tab Wallet hoạt động độc lập, không reset sai state khi chuyển tab.
+- Categories cập nhật tức thời cho màn Transactions.
+
+---
+
+### Người D — Goals + Notifications + Profile (3 màn)
+
+**Màn hình:** `GoalsScreen`, `NotificationsScreen`, `ProfileScreen`  
+**Nhánh:** `feature/goals-notifications-profile`
+
+**Phần việc chi tiết:**
+
+- [ ] `GoalsScreen`: CRUD mục tiêu + progress.
+- [ ] `NotificationsScreen`: list phân trang + đánh dấu đã đọc (`PATCH notifications`).
+- [ ] `ProfileScreen`: thông tin user (`GET user/me`) + logout (`POST auth/logout`).
+- [ ] Đồng bộ unread count cho icon chuông trên AppBar/nav.
+- [ ] Chuẩn UX: pull-to-refresh, skeleton, thông báo lỗi thân thiện.
+
+**Expected output:**
+
+- Có vòng đời user hoàn chỉnh: đặt mục tiêu, nhận thông báo, quản lý phiên đăng nhập.
+
+**DoD:**
+
+- Logout xóa token local và quay về `AuthScreen`.
+- Notifications cập nhật số chưa đọc chính xác.
+
+---
+
+### Người E — Reminders + Error handling + QA điều phối (1 màn + tích hợp)
+
+**Màn hình:** `RemindersScreen`  
+**Nhánh:** `feature/reminders-and-qa`
+
+**Phần việc chi tiết:**
+
+- [ ] `RemindersScreen`: list/create/update reminder (`reminders` API).
+- [ ] Làm `ErrorView` dùng chung cho Unauthorized/NotFound/network error (không tạo màn riêng).
+- [ ] Thiết lập checklist QA theo module và tạo template bug report.
+- [ ] Chạy smoke test cuối mỗi sprint trên nhánh `develop`, tổng hợp lỗi theo mức độ.
+- [ ] Theo dõi regression sau khi merge PR của B/C/D.
+
+**Expected output:**
+
+- App có lớp kiểm soát chất lượng rõ ràng, giảm lỗi tích hợp phút cuối.
+
+**DoD:**
+
+- Reminders chạy đủ CRUD cơ bản.
+- ErrorView được dùng lại ở ít nhất 3 case lỗi khác nhau.
+- Sprint 3 có báo cáo QA hoàn chỉnh (Pass/Fail + bug link).
+
+---
+
+## 4. Lịch làm việc gợi ý (3 sprint × 1 tuần, 10 màn)
 
 | Sprint | Mục tiêu | Người |
 |--------|---------|-------|
-| **S1** | Scaffold + Auth + Router + Theme | **A** (xong trước ngày 3), B/C/D/E setup branch |
-| **S2** | 4 màn / người song song | B, C, D, **E** (OCR + Unauthorized + NotFound); **A** chỉ review/merge |
-| **S3** | Nav tích hợp, polish, demo | B/C/D/E code nhẹ; **E** chạy checklist; **A** merge `develop` → demo |
+| **S1** | Foundation + Auth/Onboarding + skeleton module | A lead; B/C/D/E setup module contracts |
+| **S2** | Hoàn thiện feature chính (Dashboard/Transactions/Wallet/Categories/Goals/Profile/Notifications/Reminders) | B/C/D/E code song song; A review + resolve shared core |
+| **S3** | Tích hợp tổng, tối ưu UX, fix regression, demo | E điều phối QA; A merge gate; cả nhóm fix bug theo severity |
 
 **Daily:** 15 phút — blocker API / merge conflict.  
 **Review:** 1 PR / người / sprint, không merge trực tiếp `main`.
@@ -280,7 +278,7 @@ Tham chiếu `FE_QLTC/src/shared/constants/apiEndpoint.ts`:
 
 ## 5. Quy trình Git & push code lên [PRM393-Finjar](https://github.com/PRM393-Finjar)
 
-Org hiện **chưa có public repo** — team lead tạo repo private (ví dụ `finjar-mobile`) và mời 5 thành viên.
+Repo nhóm hiện tại: `https://github.com/PRM393-Finjar/Finjar`.
 
 ### 5.1. Setup lần đầu (mỗi thành viên)
 
@@ -288,9 +286,9 @@ Org hiện **chưa có public repo** — team lead tạo repo private (ví dụ 
 # Cài Flutter: https://docs.flutter.dev/get-started/install
 flutter doctor
 
-# Clone (thay URL sau khi lead tạo repo)
-git clone https://github.com/PRM393-Finjar/finjar-mobile.git
-cd finjar-mobile
+# Clone repo nhóm
+git clone https://github.com/PRM393-Finjar/Finjar.git
+cd Finjar
 
 git checkout develop
 flutter pub get
@@ -333,7 +331,7 @@ git push -u origin feature/ten-man-hinh
 
 1. Vào repo → **Compare & pull request** sau khi push.
 2. **Base:** `develop` ← **Compare:** `feature/...`
-3. Tiêu đề PR: `[B] Dashboard + Transactions (4 screens)`
+3. Tiêu đề PR: `[B] Dashboard + Transactions (MVP 10-screen plan)`
 4. Mô tả PR mẫu:
 
 ```markdown
@@ -393,18 +391,20 @@ git push -u origin release/1.0.0
 
 ## 6. Checklist tích hợp (E điều phối, cả nhóm thực hiện)
 
-**Sprint 3 — ngày cuối:** E chạy lần lượt, mỗi mục ghi Pass/Fail trên Issue. A xác nhận trước khi tag demo.
+**Sprint 3 — ngày cuối:** E chạy checklist, mỗi mục ghi Pass/Fail trên Issue; A duyệt release.
 
 Sau khi merge tất cả nhánh vào `develop`:
 
-- [ ] Guest: Login → Register → quay Login
+- [ ] Guest: Login <-> Register tab trên `AuthScreen`
 - [ ] User mới: Login → Onboarding → Dashboard
-- [ ] Tab/nav: Dashboard ↔ Transactions ↔ Accounts ↔ Profile
+- [ ] Tab/nav: Dashboard ↔ Transactions ↔ Wallet ↔ Profile
 - [ ] Thêm giao dịch → thấy trên Dashboard
-- [ ] OCR: chọn ảnh → draft → confirm (nếu BE bật)
+- [ ] Wallet tabs: Accounts/Jars/Budget đều load và CRUD được
+- [ ] Categories cập nhật và dùng được khi tạo transaction
+- [ ] Goals CRUD + Notifications read/unread hoạt động
+- [ ] Reminders CRUD hoạt động
 - [ ] Logout → về Login, token đã xóa
-- [ ] Route sai → NotFound
-- [ ] User không đủ quyền → Unauthorized
+- [ ] Route lỗi/401 hiển thị `ErrorView` đúng hành vi
 - [ ] `flutter analyze` không lỗi
 - [ ] Build APK debug: `flutter build apk --debug`
 
@@ -418,10 +418,7 @@ Sau khi merge tất cả nhánh vào `develop`:
 | `onboarding` | `onboarding` |
 | `dashboard` | `dashboard` |
 | `transactions` | `transactions` |
-| `imports` | `imports` |
-| `financial-accounts` | `financial_accounts` |
-| `jars` | `jars` |
-| `budget` | `budget` |
+| `financial-accounts`, `jars`, `budget` | `wallet` (3 tab) |
 | `categories` | `categories` |
 | `reminders` | `reminders` |
 | `shared/pages` (goals, notifications) | `goals`, `notifications` |
@@ -441,4 +438,4 @@ Sau khi merge tất cả nhánh vào `develop`:
 
 ---
 
-**Cập nhật:** 26/05/2026 — Phiên bản 1.0 (18 màn user, 5 dev, Flutter).
+**Cập nhật:** 28/05/2026 — Phiên bản 2.0 (MVP 10 màn, chia task theo độ phức tạp).
