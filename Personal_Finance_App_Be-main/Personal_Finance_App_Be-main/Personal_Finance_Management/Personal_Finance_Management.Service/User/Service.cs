@@ -133,6 +133,8 @@ public class Service : IService
         user.LastName = request.LastName ?? user.LastName;
         user.Phone = request.Phone ?? user.Phone;
         user.AvatarUrl = request.AvatarUrl ?? user.AvatarUrl;
+        if (!string.IsNullOrWhiteSpace(request.PreferredCurrency))
+            user.PreferredCurrency = request.PreferredCurrency.Trim().ToUpperInvariant();
 
         await _dbContext.SaveChangesAsync();
         var result = new Response.UpdateUserResponse()
@@ -143,6 +145,23 @@ public class Service : IService
             avatarUrl = user.AvatarUrl,
         };
         return result;
+    }
+
+    public async Task ChangePassword(Request.ChangePasswordRequest request)
+    {
+        var userIdGuid = GetCurrentUserId();
+        var user = await _dbContext.Accounts.FirstOrDefaultAsync(x => x.Id == userIdGuid);
+        if (user == null) throw new Exception("User not found");
+
+        if (!BCrypt.Net.BCrypt.Verify(request.CurrentPassword, user.PasswordHash))
+            throw AppValidationException.BadRequest("Mật khẩu hiện tại không đúng.", "currentPassword", "INVALID_CURRENT_PASSWORD");
+
+        if (request.NewPassword.Length < 6)
+            throw AppValidationException.BadRequest("Mật khẩu mới phải có ít nhất 6 ký tự.", "newPassword", "PASSWORD_TOO_SHORT");
+
+        user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.NewPassword, 12);
+        user.UpdatedAt = DateTime.UtcNow;
+        await _dbContext.SaveChangesAsync();
     }
 
     public async Task<Response.AdminUserResponse> UpdateUserStatus(Request.UserStatusRequest request)

@@ -7,6 +7,7 @@ public interface IService
     //Authen needed
     public Task<Response.GetUserInforResponse> GetUserInfor();
     public Task<Response.UpdateUserResponse> UpdateUserProfile(Request.UpdateUserRequest request);
+    public Task ChangePassword(Request.ChangePasswordRequest request);
     public Task<Response.ViewSetupResponse> ViewSetup();
     public Task<BaseResponse.PagedResponse<Response.AdminUserResponse>> GetAdminUsers(Request.GetAdminUsersRequest request);
     public Task<Response.AdminUserResponse> GetUserInforById(Request.UserIdRequest request);

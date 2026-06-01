@@ -26,7 +26,7 @@ public class Service : IService
 
         if (user == null)
             throw new Exception("User not found");
-        var query = _dbContext.FinancialAccounts.Where(x => x.UserId == userIdGuid);
+        var query = _dbContext.FinancialAccounts.Where(x => x.UserId == userIdGuid && x.IsActive);
         var selectedQuery = query.Select(x => new Response.GetFinancialAccountResponse
         {
             id = x.Id,
@@ -86,7 +86,8 @@ public class Service : IService
 
         currency = currency.ToUpperInvariant();
 
-        var existedAccount = _dbContext.FinancialAccounts.FirstOrDefault(x => x.UserId == userIdGuid && x.Name == accountName);
+        var existedAccount = _dbContext.FinancialAccounts
+            .FirstOrDefault(x => x.UserId == userIdGuid && x.Name == accountName && x.IsActive);
         if (existedAccount != null)
         {
             throw AppValidationException.Conflict("Financial account already exists", "name", "FINANCIAL_ACCOUNT_ALREADY_EXISTS");

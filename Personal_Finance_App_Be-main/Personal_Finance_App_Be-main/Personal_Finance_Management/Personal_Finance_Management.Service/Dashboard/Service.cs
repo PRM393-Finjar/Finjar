@@ -26,13 +26,19 @@ public class Service : IService
             throw new Exception("User not found");
 
         // ===============================BalanceSummaryResponse===============================
-        var totalJar = _dbContext.Jars.Where(x => x.UserId == userIdGuid).Sum(x => x.Balance);
-        var totalAccount = _dbContext.FinancialAccounts.Where(x => x.UserId == userIdGuid).Sum(x => x.CurrentBalance);
-        var totalIncome = _dbContext.Transactions.Where(x => x.Type == "Income").Sum(x => x.TransactionsAmount);
-        var totalExpense = _dbContext.Transactions.Where(x => x.Type == "Expense").Sum(x => x.TransactionsAmount);
+        var totalJar = _dbContext.Jars.Where(x => x.UserId == userIdGuid).Sum(x => (decimal?)x.Balance) ?? 0;
+        var totalAccount = _dbContext.FinancialAccounts
+            .Where(x => x.UserId == userIdGuid && x.IsActive)
+            .Sum(x => (decimal?)x.CurrentBalance) ?? 0;
+        var totalIncome = _dbContext.Transactions
+            .Where(x => x.UserId == userIdGuid && x.Type == "Income")
+            .Sum(x => (decimal?)x.TransactionsAmount) ?? 0;
+        var totalExpense = _dbContext.Transactions
+            .Where(x => x.UserId == userIdGuid && x.Type == "Expense")
+            .Sum(x => (decimal?)x.TransactionsAmount) ?? 0;
         var BalanceSummaryResponse = new Response.BalanceSummaryResponse
         {
-            totalBalance = totalJar + totalAccount,
+            totalBalance = totalAccount,
             allocatedBalance = totalJar,
             unallocatedBalance = totalAccount - totalJar,
             totalIncome = totalIncome,
@@ -41,7 +47,8 @@ public class Service : IService
         };
         
         // ===============================financialAccounts===============================
-        var financialAccountQuery = _dbContext.FinancialAccounts.Where(x => x.UserId == userIdGuid);
+        var financialAccountQuery = _dbContext.FinancialAccounts
+            .Where(x => x.UserId == userIdGuid && x.IsActive);
         var selectedFinancialAccountQuery = financialAccountQuery.Select(x =>
             new Response.FinancialAccountResponse
             {

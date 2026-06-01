@@ -8,6 +8,13 @@ public class Request
         public string? LastName { get; set; }
         public string? Phone { get; set; }
         public string? AvatarUrl { get; set; }
+        public string? PreferredCurrency { get; set; }
+    }
+
+    public class ChangePasswordRequest
+    {
+        public string CurrentPassword { get; set; } = string.Empty;
+        public string NewPassword { get; set; } = string.Empty;
     }
     public class UserIdRequest
     {

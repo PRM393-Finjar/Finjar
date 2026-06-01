@@ -30,6 +30,13 @@ public class UserController : ControllerBase
         return Ok(result);
     }
 
+    [HttpPatch("me/password")]
+    public async Task<IActionResult> ChangePassword([FromBody] Request.ChangePasswordRequest request)
+    {
+        await _service.ChangePassword(request);
+        return Ok(new { message = "Đổi mật khẩu thành công." });
+    }
+
     [HttpGet("me/setup")]
     public async Task<IActionResult> GetSetup()
     {

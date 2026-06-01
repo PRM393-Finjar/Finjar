@@ -28,7 +28,7 @@ public class Service : IService
         
         var goals = await _appDbContext.Goals
             .Include(g => g.LinkedJar)
-            .Where(g => g.UserId == userId && g.Status == "Active" && g.Status == "Completed" )
+            .Where(g => g.UserId == userId && (g.Status == "Active" || g.Status == "Completed"))
             .OrderBy(g => g.Title)
             .ToListAsync();
         
@@ -121,7 +121,7 @@ public class Service : IService
 
         _appDbContext.Goals.Add(goal);
         await _appDbContext.SaveChangesAsync();
-        if (linkedJar.Balance >= request.TargetAmount)
+        if (linkedJar != null && linkedJar.Balance >= request.TargetAmount)
         {
             goal.Status = "Completed";
             goal.UpdatedAt = DateTimeOffset.UtcNow;
