@@ -26,7 +26,10 @@ public class Service : IService
             throw new Exception("User not found");
 
         // ===============================BalanceSummaryResponse===============================
-        var totalJar = _dbContext.Jars.Where(x => x.UserId == userIdGuid).Sum(x => (decimal?)x.Balance) ?? 0;
+        // Use (decimal?) to safely handle empty sets (Sum returns null, not 0, on empty)
+        var totalJar = _dbContext.Jars
+            .Where(x => x.UserId == userIdGuid)
+            .Sum(x => (decimal?)x.Balance) ?? 0;
         var totalAccount = _dbContext.FinancialAccounts
             .Where(x => x.UserId == userIdGuid && x.IsActive)
             .Sum(x => (decimal?)x.CurrentBalance) ?? 0;
@@ -36,7 +39,8 @@ public class Service : IService
         var totalExpense = _dbContext.Transactions
             .Where(x => x.UserId == userIdGuid && x.Type == "Expense")
             .Sum(x => (decimal?)x.TransactionsAmount) ?? 0;
-        var BalanceSummaryResponse = new Response.BalanceSummaryResponse
+
+        var balanceSummary = new Response.BalanceSummaryResponse
         {
             totalBalance = totalAccount,
             allocatedBalance = totalJar,
@@ -45,83 +49,131 @@ public class Service : IService
             totalExpense = totalExpense,
             netChange = totalIncome - totalExpense
         };
-        
+
         // ===============================financialAccounts===============================
-        var financialAccountQuery = _dbContext.FinancialAccounts
-            .Where(x => x.UserId == userIdGuid && x.IsActive);
-        var selectedFinancialAccountQuery = financialAccountQuery.Select(x =>
-            new Response.FinancialAccountResponse
+        var financialAccounts = _dbContext.FinancialAccounts
+            .Where(x => x.UserId == userIdGuid && x.IsActive)
+            .Select(x => new Response.FinancialAccountResponse
             {
                 id = x.Id,
                 name = x.Name,
                 currentBalance = x.CurrentBalance,
                 isDefault = x.IsDefault
-            });
+            })
+            .ToList();
+
         // ===============================jarSummary===============================
-        var jarQuery = _dbContext.Jars.Where(x => x.UserId == userIdGuid);
+        // Step 1: Materialize raw jar data + spent from DB (no division in SQL)
+        var rawJars = _dbContext.Jars
+            .Where(x => x.UserId == userIdGuid)
+            .Select(j => new
+            {
+                j.Id,
+                j.Name,
+                j.Balance,
+                // Sum spent per jar safely
+                Spent = _dbContext.Transactions
+                    .Where(t => t.FromJarId == j.Id)
+                    .Sum(s => (decimal?)s.TransactionsAmount) ?? 0
+            })
+            .ToList();
 
-        var tmpJarObject = jarQuery.Select(j => new
+        // Step 2: Calculate percentage in C# to avoid PostgreSQL numeric overflow
+        var jarSummary = rawJars.Select(x => new Response.JarSummaryResponse
         {
-            jar = j,
-            spent = _dbContext.Transactions
-                .Where(t => t.FromJarId == j.Id).Sum(s => (decimal?)s.TransactionsAmount) ?? 0,
-        });
-        var selectedJarQuery = tmpJarObject.Select(x => new Response.JarSummaryResponse
-        {
-            jarId = x.jar.Id,
-            jarName = x.jar.Name,
-            balance = x.jar.Balance,
-            spent = x.spent,
-            spentPercentage = (x.jar.Balance + x.spent) == 0 ? 0 : (x.spent * 100m) / (x.jar.Balance + x.spent)
-        });
-        
-        
+            jarId = x.Id,
+            jarName = x.Name,
+            balance = x.Balance,
+            spent = x.Spent,
+            spentPercentage = (x.Balance + x.Spent) == 0
+                ? 0
+                : Math.Round((x.Spent * 100m) / (x.Balance + x.Spent), 4)
+        }).ToList();
+
         // ===============================categoryBreakdown===============================
-        var categoryQuery = _dbContext.Categories.Where(x => x.OwnerUserId == userIdGuid);
-        var tmpCategoryObject = categoryQuery.Select(c => new
-        {
-            Category = c,
-            totalSpent = _dbContext.Transactions.Where(t => t.CategoryId == c.Id && t.Type == "Expense")
-                .Sum(s => (decimal?)s.TransactionsAmount) ?? 0
+        // Step 1: Materialize raw category + totalSpent from DB
+        var rawCategories = _dbContext.Categories
+            .Where(x => x.OwnerUserId == userIdGuid)
+            .Select(c => new
+            {
+                c.Id,
+                c.Name,
+                TotalSpent = _dbContext.Transactions
+                    .Where(t => t.CategoryId == c.Id && t.Type == "Expense")
+                    .Sum(s => (decimal?)s.TransactionsAmount) ?? 0
+            })
+            .ToList();
 
-        });
-        var selectedCategoryQuery = tmpCategoryObject.Select(x => new Response.CategoryBreakdownResponse
+        // Step 2: Calculate percentage in C# to avoid PostgreSQL numeric overflow
+        var categoryBreakdown = rawCategories.Select(x => new Response.CategoryBreakdownResponse
         {
-            categoryId = x.Category.Id,
-            categoryName = x.Category.Name,
-            totalAmount = x.totalSpent,
-            percentage = totalExpense == 0 ? 0 : (x.totalSpent * 100m) / totalExpense
-        });
-        
-        
+            categoryId = x.Id,
+            categoryName = x.Name,
+            totalAmount = x.TotalSpent,
+            percentage = totalExpense == 0
+                ? 0
+                : Math.Round((x.TotalSpent * 100m) / totalExpense, 4)
+        }).ToList();
+
         // ===============================recentTransactions===============================
-        var transactionQuery = _dbContext.Transactions.Where(x => x.UserId == userIdGuid);
-        var selectedTransactionsQuery = transactionQuery.Select(x => new Response.RecentTransactionResponse
-        {
-            id = x.Id,
-            type = x.Type,
-            transactionsAmount = x.TransactionsAmount,
-            note = x.Note,
-            date = x.TransactionDate,
-        });
+        // Materialize with only needed columns + Math.Round amount to safe precision
+        var recentTransactions = _dbContext.Transactions
+            .Where(x => x.UserId == userIdGuid)
+            .OrderByDescending(x => x.TransactionDate)
+            .Take(50)
+            .Select(x => new
+            {
+                x.Id,
+                x.Type,
+                x.TransactionsAmount,
+                x.Note,
+                x.TransactionDate
+            })
+            .ToList()
+            // Round in C# after materialization to avoid decimal overflow from DB
+            .Select(x => new Response.RecentTransactionResponse
+            {
+                id = x.Id,
+                type = x.Type,
+                transactionsAmount = Math.Round(x.TransactionsAmount, 2),
+                note = x.Note,
+                date = x.TransactionDate,
+            })
+            .ToList();
+
         // ===============================goalProgress===============================
-        var goalQuery = _dbContext.Goals.Where(x => x.UserId == userIdGuid);
-        var selectedGoalQuery = goalQuery.Select(x => new Response.GoalProgressResponse
+        // Step 1: Materialize raw goal data (no division in SQL)
+        var rawGoals = _dbContext.Goals
+            .Where(x => x.UserId == userIdGuid)
+            .Select(x => new
+            {
+                x.Id,
+                x.Title,
+                x.TargetAmount,
+                x.SavedAmount,
+                x.DueDate
+            })
+            .ToList();
+
+        // Step 2: Calculate percentage in C# to avoid PostgreSQL numeric overflow
+        var goalProgress = rawGoals.Select(x => new Response.GoalProgressResponse
         {
             goalId = x.Id,
             title = x.Title,
-            progressPercentage = x.TargetAmount == 0 ? 0 : (x.SavedAmount * 100m) / x.TargetAmount,
+            progressPercentage = x.TargetAmount == 0
+                ? 0
+                : Math.Round((x.SavedAmount * 100m) / x.TargetAmount, 4),
             daysRemaining = (decimal)(x.DueDate - DateTimeOffset.UtcNow).TotalDays
-        });
+        }).ToList();
 
         var result = new Response.GetDashboardResult
         {
-            balanceSummary = BalanceSummaryResponse,
-            financialAccounts = selectedFinancialAccountQuery.ToList(),
-            jarSummary = selectedJarQuery.ToList(),
-            categoryBreakdown = selectedCategoryQuery.ToList(),
-            recentTransactions = selectedTransactionsQuery.ToList(),
-            goalProgress = selectedGoalQuery.ToList(),
+            balanceSummary = balanceSummary,
+            financialAccounts = financialAccounts,
+            jarSummary = jarSummary,
+            categoryBreakdown = categoryBreakdown,
+            recentTransactions = recentTransactions,
+            goalProgress = goalProgress,
         };
         return result;
     }

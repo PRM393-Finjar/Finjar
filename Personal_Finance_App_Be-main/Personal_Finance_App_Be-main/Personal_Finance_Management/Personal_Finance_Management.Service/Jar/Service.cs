@@ -27,11 +27,12 @@ public class Service : IService
         if (user == null)
             throw new Exception("User not found");
         
+        // jarSetup may be null if user hasn't completed onboarding yet
         var jarSetup = _dbContext.JarSetups.FirstOrDefault(x => x.UserId == userIdGuid);
         var jars = _dbContext.Jars.Where(x => x.UserId == userIdGuid);
 
-        var totalJarsBalance = _dbContext.Jars.Where(x => x.UserId == userIdGuid).Sum(x => x.Balance);
-        var totalAccountsBalance = _dbContext.FinancialAccounts.Where(x => x.UserId == userIdGuid).Sum(x => x.CurrentBalance);
+        var totalJarsBalance = _dbContext.Jars.Where(x => x.UserId == userIdGuid).Sum(x => (decimal?)x.Balance) ?? 0;
+        var totalAccountsBalance = _dbContext.FinancialAccounts.Where(x => x.UserId == userIdGuid).Sum(x => (decimal?)x.CurrentBalance) ?? 0;
         var selectedQuery = jars.Select(x => new Response.GetJarResponse
         {
             id = x.Id,
@@ -43,7 +44,8 @@ public class Service : IService
         });
         var result = new Response.GetJarsResult()
         {
-            methodType = jarSetup.MethodType,
+            // Use null-conditional to avoid NullReferenceException when jarSetup doesn't exist
+            methodType = jarSetup?.MethodType ?? "Percentage",
             totalJarBalance = totalJarsBalance,
             unallocatedBalance = totalAccountsBalance,
             data = selectedQuery.ToList(),

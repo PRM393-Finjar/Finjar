@@ -3,7 +3,7 @@ import 'package:finjar_mobile/core/theme/brutal_theme.dart';
 import 'package:finjar_mobile/core/network/api_client.dart';
 import 'package:intl/intl.dart';
 import 'package:finjar_mobile/core/theme/app_settings.dart';
-import 'package:finjar_mobile/core/theme/thousands_formatter.dart';
+import 'package:finjar_mobile/core/theme/currency_input.dart';
 
 class GoalsScreen extends StatefulWidget {
   const GoalsScreen({Key? key}) : super(key: key);
@@ -65,7 +65,7 @@ class _GoalsScreenState extends State<GoalsScreen> {
 
   Future<void> _addGoal() async {
     final title = _titleController.text.trim();
-    final target = double.tryParse(_targetController.text.replaceAll('.', '')) ?? 0.0;
+    final target = _targetController.rawValue;
 
     if (title.isEmpty || target <= 0) return;
 
@@ -156,7 +156,7 @@ class _GoalsScreenState extends State<GoalsScreen> {
     final editTitleController = TextEditingController(text: goal['title']);
     final initialTargetAmt = (goal['targetAmount'] ?? 0.0).toDouble();
     final editTargetController = TextEditingController(
-      text: NumberFormat.decimalPattern('vi_VN').format(initialTargetAmt),
+      text: initialTargetAmt.toInt().toString(),
     );
 
     showModalBottomSheet(
@@ -186,12 +186,10 @@ class _GoalsScreenState extends State<GoalsScreen> {
                 controller: editTitleController,
               ),
               const SizedBox(height: 16),
-              BrutalInput(
+              BrutalCurrencyInput(
                 label: 'Số tiền cần đạt được',
                 hint: '10.000.000',
                 controller: editTargetController,
-                keyboardType: TextInputType.number,
-                inputFormatters: [ThousandsSeparatorInputFormatter()],
               ),
               const SizedBox(height: 24),
               BrutalButton(
@@ -199,7 +197,7 @@ class _GoalsScreenState extends State<GoalsScreen> {
                 color: BrutalColors.green,
                 onTap: () async {
                   final title = editTitleController.text.trim();
-                  final target = double.tryParse(editTargetController.text.replaceAll('.', '')) ?? 0.0;
+                  final target = editTargetController.rawValue;
 
                   if (title.isNotEmpty && target > 0) {
                     try {
@@ -252,12 +250,10 @@ class _GoalsScreenState extends State<GoalsScreen> {
                 controller: _titleController,
               ),
               const SizedBox(height: 16),
-              BrutalInput(
+              BrutalCurrencyInput(
                 label: 'Số tiền cần đạt được',
                 hint: '10.000.000',
                 controller: _targetController,
-                keyboardType: TextInputType.number,
-                inputFormatters: [ThousandsSeparatorInputFormatter()],
               ),
               const SizedBox(height: 24),
               BrutalButton(
@@ -413,6 +409,7 @@ class _GoalsScreenState extends State<GoalsScreen> {
                   },
                 ),
       floatingActionButton: FloatingActionButton(
+        heroTag: 'fab-goals',
         onPressed: _showAddGoalDialog,
         backgroundColor: BrutalColors.green,
         shape: RoundedRectangleBorder(

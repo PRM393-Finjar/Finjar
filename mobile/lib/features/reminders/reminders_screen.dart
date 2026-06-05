@@ -3,7 +3,7 @@ import 'package:finjar_mobile/core/theme/brutal_theme.dart';
 import 'package:finjar_mobile/core/network/api_client.dart';
 import 'package:intl/intl.dart';
 import 'package:finjar_mobile/core/theme/app_settings.dart';
-import 'package:finjar_mobile/core/theme/thousands_formatter.dart';
+import 'package:finjar_mobile/core/theme/currency_input.dart';
 
 class RemindersScreen extends StatefulWidget {
   const RemindersScreen({Key? key}) : super(key: key);
@@ -67,7 +67,7 @@ class _RemindersScreenState extends State<RemindersScreen> {
 
   Future<void> _addReminder() async {
     final title = _titleController.text.trim();
-    final amount = double.tryParse(_amountController.text.replaceAll('.', '')) ?? 0.0;
+    final amount = _amountController.rawValue;
     final date = _selectedDate ?? DateTime.now().add(const Duration(days: 7));
 
     if (title.isEmpty) return;
@@ -176,7 +176,7 @@ class _RemindersScreenState extends State<RemindersScreen> {
     final editTitleController = TextEditingController(text: rem['title']);
     final initialAmount = (rem['amount'] ?? 0.0).toDouble();
     final editAmountController = TextEditingController(
-      text: NumberFormat.decimalPattern('vi_VN').format(initialAmount),
+      text: initialAmount.toInt().toString(),
     );
     // Normalize to match dropdown items casing
     String editFrequency = 'Monthly';
@@ -216,12 +216,10 @@ class _RemindersScreenState extends State<RemindersScreen> {
                     controller: editTitleController,
                   ),
                   const SizedBox(height: 12),
-                  BrutalInput(
+                  BrutalCurrencyInput(
                     label: 'Số tiền ước lượng',
                     hint: '500.000',
                     controller: editAmountController,
-                    keyboardType: TextInputType.number,
-                    inputFormatters: [ThousandsSeparatorInputFormatter()],
                   ),
                   const SizedBox(height: 16),
                   Text('Chu kỳ', style: BrutalStyles.bodyStyle(size: 14, weight: FontWeight.w700)),
@@ -262,7 +260,7 @@ class _RemindersScreenState extends State<RemindersScreen> {
                     color: BrutalColors.green,
                     onTap: () async {
                       final title = editTitleController.text.trim();
-                      final amount = double.tryParse(editAmountController.text.replaceAll('.', '')) ?? 0.0;
+                      final amount = editAmountController.rawValue;
 
                       if (title.isNotEmpty && amount > 0) {
                         try {
@@ -320,12 +318,10 @@ class _RemindersScreenState extends State<RemindersScreen> {
                     controller: _titleController,
                   ),
                   const SizedBox(height: 12),
-                  BrutalInput(
+                  BrutalCurrencyInput(
                     label: 'Số tiền ước lượng',
                     hint: '500.000',
                     controller: _amountController,
-                    keyboardType: TextInputType.number,
-                    inputFormatters: [ThousandsSeparatorInputFormatter()],
                   ),
                   const SizedBox(height: 12),
                   Text('Chu kỳ', style: BrutalStyles.bodyStyle(size: 14, weight: FontWeight.w700)),
@@ -527,6 +523,7 @@ class _RemindersScreenState extends State<RemindersScreen> {
                   },
                 ),
       floatingActionButton: FloatingActionButton(
+        heroTag: 'fab-reminders',
         onPressed: _showAddReminderDialog,
         backgroundColor: BrutalColors.green,
         shape: RoundedRectangleBorder(

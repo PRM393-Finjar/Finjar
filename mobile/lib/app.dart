@@ -17,10 +17,20 @@ class FinjarApp extends StatelessWidget {
           theme: ThemeData(
             brightness: Brightness.light,
             scaffoldBackgroundColor: const Color(0xFFF4F4F5),
+            fontFamilyFallback: const [
+              'Segoe UI Emoji',
+              'Apple Color Emoji',
+              'Noto Color Emoji',
+            ],
           ),
           darkTheme: ThemeData(
             brightness: Brightness.dark,
             scaffoldBackgroundColor: const Color(0xFF121212),
+            fontFamilyFallback: const [
+              'Segoe UI Emoji',
+              'Apple Color Emoji',
+              'Noto Color Emoji',
+            ],
           ),
           routerConfig: appRouter,
         );

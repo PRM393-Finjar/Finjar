@@ -8,27 +8,45 @@ class ThousandsSeparatorInputFormatter extends TextInputFormatter {
   TextEditingValue formatEditUpdate(
       TextEditingValue oldValue, TextEditingValue newValue) {
     if (newValue.text.isEmpty) {
-      return newValue.copyWith(text: '');
+      return const TextEditingValue(
+        text: '',
+        selection: TextSelection.collapsed(offset: 0),
+        composing: TextRange.empty,
+      );
     }
 
-    // Strip all non-digits (except we can keep digit characters)
+    // Strip all non-digit characters
     final String cleanText = newValue.text.replaceAll(RegExp(r'\D'), '');
     if (cleanText.isEmpty) {
-      return const TextEditingValue();
+      return const TextEditingValue(
+        text: '',
+        selection: TextSelection.collapsed(offset: 0),
+        composing: TextRange.empty,
+      );
     }
 
     final double? value = double.tryParse(cleanText);
     if (value == null) {
-      return oldValue;
+      // Return oldValue but guarantee its selection/composing is in-range
+      final safeOffset = oldValue.text.length;
+      return TextEditingValue(
+        text: oldValue.text,
+        selection: TextSelection.collapsed(offset: safeOffset),
+        composing: TextRange.empty,
+      );
     }
 
     // Format using vi_VN locale which uses dot '.' as thousands separator
     final String newText = _formatter.format(value);
 
-    // Keep cursor at the end
-    return newValue.copyWith(
+    // Guard: clamp offset to text length to prevent Flutter Web assertion crash:
+    // "range.end >= 0 && range.end <= text.length"
+    final int safeOffset = newText.length.clamp(0, newText.length);
+
+    return TextEditingValue(
       text: newText,
-      selection: TextSelection.collapsed(offset: newText.length),
+      selection: TextSelection.collapsed(offset: safeOffset),
+      composing: TextRange.empty,
     );
   }
 }

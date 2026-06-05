@@ -3,7 +3,7 @@ import 'package:finjar_mobile/core/theme/brutal_theme.dart';
 import 'package:finjar_mobile/core/network/api_client.dart';
 import 'package:intl/intl.dart';
 import 'package:finjar_mobile/core/theme/app_settings.dart';
-import 'package:finjar_mobile/core/theme/thousands_formatter.dart';
+import 'package:finjar_mobile/core/theme/currency_input.dart';
 
 class TransactionsScreen extends StatefulWidget {
   const TransactionsScreen({Key? key}) : super(key: key);
@@ -159,12 +159,10 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                       controller: titleController,
                     ),
                     const SizedBox(height: 12),
-                    BrutalInput(
+                    BrutalCurrencyInput(
                       label: 'Số tiền',
                       hint: '100.000',
                       controller: amountController,
-                      keyboardType: TextInputType.number,
-                      inputFormatters: [ThousandsSeparatorInputFormatter()],
                     ),
                     const SizedBox(height: 12),
                     Text('Danh mục', style: BrutalStyles.bodyStyle(size: 14, weight: FontWeight.w700)),
@@ -230,7 +228,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                       color: BrutalColors.green,
                       onTap: () async {
                         final title = titleController.text.trim();
-                        final amount = double.tryParse(amountController.text.replaceAll('.', '')) ?? 0.0;
+                        final amount = amountController.rawValue;
 
                         if (title.isNotEmpty && amount > 0) {
                           try {
@@ -403,6 +401,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
             ],
           ),
           floatingActionButton: FloatingActionButton(
+            heroTag: 'fab-transactions',
             onPressed: _showAddTransactionDialog,
             backgroundColor: BrutalColors.green,
             shape: RoundedRectangleBorder(

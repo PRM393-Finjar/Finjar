@@ -14,6 +14,12 @@ class AppSettings extends ChangeNotifier {
   bool _isDarkMode = false;
   bool _isInitialized = false;
 
+  final ChangeNotifier dashboardRefreshNotifier = ChangeNotifier();
+
+  void triggerDashboardRefresh() {
+    dashboardRefreshNotifier.notifyListeners();
+  }
+
   String get currency => _currency;
   bool get isDarkMode => _isDarkMode;
   bool get isInitialized => _isInitialized;

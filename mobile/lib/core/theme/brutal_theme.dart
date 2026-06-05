@@ -61,12 +61,19 @@ class BrutalStyles {
     );
   }
 
+  static const List<String> fontFallbacks = [
+    'Segoe UI Emoji',
+    'Apple Color Emoji',
+    'Noto Color Emoji',
+  ];
+
   static TextStyle titleStyle({double size = 20, Color? color}) {
     return GoogleFonts.plusJakartaSans(
       fontSize: size,
       fontWeight: FontWeight.w800,
       color: color ?? BrutalColors.ink,
       letterSpacing: -0.5,
+      fontFamilyFallback: fontFallbacks,
     );
   }
 
@@ -75,6 +82,7 @@ class BrutalStyles {
       fontSize: size,
       fontWeight: weight,
       color: color ?? BrutalColors.ink,
+      fontFamilyFallback: fontFallbacks,
     );
   }
 
@@ -83,6 +91,7 @@ class BrutalStyles {
       fontSize: size,
       fontWeight: weight,
       color: color ?? BrutalColors.grey,
+      fontFamilyFallback: fontFallbacks,
     );
   }
 }
@@ -226,6 +235,14 @@ class BrutalInput extends StatelessWidget {
             keyboardType: keyboardType,
             inputFormatters: inputFormatters,
             style: BrutalStyles.bodyStyle(size: 14, weight: FontWeight.w600),
+            // Disable browser IME composing to prevent Flutter Web assertion crash:
+            // "Range end N is out of text of length M"
+            // Chrome's IME sends composing ranges that no longer match the
+            // formatter-modified text. Flutter validates BEFORE the formatter runs.
+            autocorrect: false,
+            enableSuggestions: false,
+            smartDashesType: SmartDashesType.disabled,
+            smartQuotesType: SmartQuotesType.disabled,
             decoration: InputDecoration(
               hintText: hint,
               hintStyle: BrutalStyles.labelStyle(size: 14, color: BrutalColors.grey),

@@ -27,6 +27,13 @@ class DashboardScreenState extends State<DashboardScreen> {
   void initState() {
     super.initState();
     _fetchDashboardData();
+    AppSettings().dashboardRefreshNotifier.addListener(_fetchDashboardData);
+  }
+
+  @override
+  void dispose() {
+    AppSettings().dashboardRefreshNotifier.removeListener(_fetchDashboardData);
+    super.dispose();
   }
 
   /// Called by AppShell via GlobalKey when user switches back to Dashboard tab.
@@ -36,6 +43,7 @@ class DashboardScreenState extends State<DashboardScreen> {
   }
 
   Future<void> _fetchDashboardData() async {
+    if (!mounted) return;
     setState(() {
       _isLoading = true;
       _errorMessage = null;
@@ -43,6 +51,7 @@ class DashboardScreenState extends State<DashboardScreen> {
 
     try {
       final response = await _apiClient.get('dashboard');
+      if (!mounted) return;
       if (response.statusCode == 200) {
         final data = response.data;
         setState(() {
@@ -55,6 +64,7 @@ class DashboardScreenState extends State<DashboardScreen> {
         });
       }
     } catch (e) {
+      if (!mounted) return;
       setState(() {
         _totalBalance = 0.0;
         _monthlyIncome = 0.0;
@@ -63,9 +73,11 @@ class DashboardScreenState extends State<DashboardScreen> {
         _errorMessage = 'Không thể tải dữ liệu từ máy chủ.';
       });
     } finally {
-      setState(() {
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
     }
   }
 

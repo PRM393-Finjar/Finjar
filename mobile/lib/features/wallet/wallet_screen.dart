@@ -3,7 +3,7 @@ import 'package:finjar_mobile/core/theme/brutal_theme.dart';
 import 'package:finjar_mobile/core/network/api_client.dart';
 import 'package:intl/intl.dart';
 import 'package:finjar_mobile/core/theme/app_settings.dart';
-import 'package:finjar_mobile/core/theme/thousands_formatter.dart';
+import 'package:finjar_mobile/core/theme/currency_input.dart';
 
 class WalletScreen extends StatefulWidget {
   const WalletScreen({Key? key}) : super(key: key);
@@ -146,6 +146,7 @@ class _WalletScreenState extends State<WalletScreen> with SingleTickerProviderSt
         'isDefault': false,
       });
       _fetchAccounts();
+      AppSettings().triggerDashboardRefresh();
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Tạo tài khoản thành công!')),
       );
@@ -163,6 +164,7 @@ class _WalletScreenState extends State<WalletScreen> with SingleTickerProviderSt
         'currentBalance': balance,
       });
       _fetchAccounts();
+      AppSettings().triggerDashboardRefresh();
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Không thể cập nhật tài khoản.')),
@@ -215,6 +217,7 @@ class _WalletScreenState extends State<WalletScreen> with SingleTickerProviderSt
     try {
       await _apiClient.delete('financial-accounts/$id');
       _fetchAccounts();
+      AppSettings().triggerDashboardRefresh();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Xóa tài khoản thành công!')),
@@ -291,12 +294,10 @@ class _WalletScreenState extends State<WalletScreen> with SingleTickerProviderSt
                     controller: nameController,
                   ),
                   const SizedBox(height: 12),
-                  BrutalInput(
+                  BrutalCurrencyInput(
                     label: 'Số dư ban đầu',
                     hint: '1.000.000',
                     controller: balanceController,
-                    keyboardType: TextInputType.number,
-                    inputFormatters: [ThousandsSeparatorInputFormatter()],
                   ),
                   const SizedBox(height: 24),
                   BrutalButton(
@@ -304,7 +305,7 @@ class _WalletScreenState extends State<WalletScreen> with SingleTickerProviderSt
                     color: BrutalColors.green,
                     onTap: () async {
                       final name = nameController.text.trim();
-                      final balance = double.tryParse(balanceController.text.replaceAll('.', '')) ?? 0.0;
+                      final balance = balanceController.rawValue;
                       if (name.isNotEmpty) {
                         await _addAccount(name, type, balance);
                         if (mounted) Navigator.pop(context);
@@ -324,7 +325,7 @@ class _WalletScreenState extends State<WalletScreen> with SingleTickerProviderSt
     final editNameController = TextEditingController(text: acc['name']);
     final initialBalance = (acc['balance'] ?? acc['currentBalance'] ?? 0.0).toDouble();
     final editBalanceController = TextEditingController(
-      text: NumberFormat.decimalPattern('vi_VN').format(initialBalance),
+      text: initialBalance.toInt().toString(),
     );
 
     showModalBottomSheet(
@@ -354,12 +355,10 @@ class _WalletScreenState extends State<WalletScreen> with SingleTickerProviderSt
                 controller: editNameController,
               ),
               const SizedBox(height: 12),
-              BrutalInput(
+              BrutalCurrencyInput(
                 label: 'Số dư hiện tại',
                 hint: '1.000.000',
                 controller: editBalanceController,
-                keyboardType: TextInputType.number,
-                inputFormatters: [ThousandsSeparatorInputFormatter()],
               ),
               const SizedBox(height: 24),
               BrutalButton(
@@ -367,7 +366,7 @@ class _WalletScreenState extends State<WalletScreen> with SingleTickerProviderSt
                 color: BrutalColors.green,
                 onTap: () async {
                   final name = editNameController.text.trim();
-                  final balance = double.tryParse(editBalanceController.text.replaceAll('.', '')) ?? 0.0;
+                  final balance = editBalanceController.rawValue;
                   if (name.isNotEmpty) {
                     await _updateAccount(acc['id'], name, balance);
                     if (mounted) Navigator.pop(context);
@@ -596,12 +595,10 @@ class _WalletScreenState extends State<WalletScreen> with SingleTickerProviderSt
                     ),
                   ),
                   const SizedBox(height: 12),
-                  BrutalInput(
+                  BrutalCurrencyInput(
                     label: 'Số tiền giới hạn tối đa',
                     hint: '5.000.000',
                     controller: limitAmountController,
-                    keyboardType: TextInputType.number,
-                    inputFormatters: [ThousandsSeparatorInputFormatter()],
                   ),
                   const SizedBox(height: 12),
                   BrutalInput(
@@ -615,7 +612,7 @@ class _WalletScreenState extends State<WalletScreen> with SingleTickerProviderSt
                     text: 'TẠO HẠN MỨC',
                     color: BrutalColors.green,
                     onTap: () async {
-                      final limitAmt = double.tryParse(limitAmountController.text.replaceAll('.', '')) ?? 0.0;
+                      final limitAmt = limitAmountController.rawValue;
                       final alertPercentage = double.tryParse(alertController.text) ?? 80.0;
 
                       if (selectedCategoryId != null && limitAmt > 0) {
@@ -636,7 +633,7 @@ class _WalletScreenState extends State<WalletScreen> with SingleTickerProviderSt
   void _showEditLimitDialog(dynamic limit) {
     final initialLimitAmt = (limit['limitAmount'] ?? limit['LimitAmount'] ?? 0.0).toDouble();
     final editAmountController = TextEditingController(
-      text: NumberFormat.decimalPattern('vi_VN').format(initialLimitAmt),
+      text: initialLimitAmt.toInt().toString(),
     );
     final editAlertController = TextEditingController(text: (limit['alertAtPercentage'] ?? limit['AlertAtPercentage'] ?? 80.0).toString());
 
@@ -661,12 +658,10 @@ class _WalletScreenState extends State<WalletScreen> with SingleTickerProviderSt
             children: [
               Text('Chỉnh sửa hạn mức chi tiêu ⚠️', style: BrutalStyles.titleStyle(size: 20)),
               const SizedBox(height: 16),
-              BrutalInput(
+              BrutalCurrencyInput(
                 label: 'Số tiền giới hạn tối đa',
                 hint: '5.000.000',
                 controller: editAmountController,
-                keyboardType: TextInputType.number,
-                inputFormatters: [ThousandsSeparatorInputFormatter()],
               ),
               const SizedBox(height: 12),
               BrutalInput(
@@ -680,7 +675,7 @@ class _WalletScreenState extends State<WalletScreen> with SingleTickerProviderSt
                 text: 'CẬP NHẬT',
                 color: BrutalColors.green,
                 onTap: () async {
-                  final limitAmt = double.tryParse(editAmountController.text.replaceAll('.', '')) ?? 0.0;
+                  final limitAmt = editAmountController.rawValue;
                   final alertPercentage = double.tryParse(editAlertController.text) ?? 80.0;
 
                   if (limitAmt > 0) {
@@ -776,6 +771,7 @@ class _WalletScreenState extends State<WalletScreen> with SingleTickerProviderSt
           floatingActionButton: activeIndex == 1
               ? null // No FAB for preset 6-Jars allocations
               : FloatingActionButton(
+                  heroTag: 'fab-wallet',
                   onPressed: activeIndex == 0 ? _showAddAccountDialog : _showAddLimitDialog,
                   backgroundColor: BrutalColors.green,
                   shape: RoundedRectangleBorder(
