@@ -4,7 +4,7 @@ import 'package:finjar_mobile/core/storage/secure_storage.dart';
 import 'package:finjar_mobile/core/theme/brutal_theme.dart';
 import 'package:finjar_mobile/core/theme/app_settings.dart';
 import 'package:finjar_mobile/features/auth/auth_screen.dart';
-import 'package:finjar_mobile/features/onboarding/onboarding_screen.dart';
+import 'package:finjar_mobile/features/onboarding/screens/onboarding_screen.dart';
 import 'package:finjar_mobile/features/dashboard/dashboard_screen.dart';
 import 'package:finjar_mobile/features/transactions/transactions_screen.dart';
 import 'package:finjar_mobile/features/wallet/wallet_screen.dart';
@@ -26,13 +26,25 @@ final GoRouter appRouter = GoRouter(
   initialLocation: '/dashboard',
   redirect: (BuildContext context, GoRouterState state) async {
     final token = await SecureStorage.getToken();
-    final isLoggingIn = state.matchedLocation == '/auth';
+    final onboardingCompleted = await SecureStorage.isOnboardingCompleted();
+    final location = state.matchedLocation;
+    final isAuth = location == '/auth';
+    final isOnboarding = location == '/onboarding';
 
-    if (token == null || token.isEmpty) {
-      return isLoggingIn ? null : '/auth';
+    if (token != null && token.isNotEmpty && await SecureStorage.isSessionExpired()) {
+      await SecureStorage.clearSession();
+      return isAuth ? null : '/auth';
     }
 
-    if (isLoggingIn) {
+    if (token == null || token.isEmpty) {
+      return isAuth ? null : '/auth';
+    }
+
+    if (!onboardingCompleted) {
+      return isOnboarding ? null : '/onboarding';
+    }
+
+    if (isAuth || isOnboarding) {
       return '/dashboard';
     }
 

@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:finjar_mobile/core/theme/app_settings.dart';
 
 class BrutalColors {
@@ -68,7 +67,8 @@ class BrutalStyles {
   ];
 
   static TextStyle titleStyle({double size = 20, Color? color}) {
-    return GoogleFonts.plusJakartaSans(
+    return TextStyle(
+      fontFamily: 'Segoe UI',
       fontSize: size,
       fontWeight: FontWeight.w800,
       color: color ?? BrutalColors.ink,
@@ -78,7 +78,8 @@ class BrutalStyles {
   }
 
   static TextStyle bodyStyle({double size = 14, Color? color, FontWeight weight = FontWeight.w600}) {
-    return GoogleFonts.plusJakartaSans(
+    return TextStyle(
+      fontFamily: 'Segoe UI',
       fontSize: size,
       fontWeight: weight,
       color: color ?? BrutalColors.ink,
@@ -87,7 +88,8 @@ class BrutalStyles {
   }
 
   static TextStyle labelStyle({double size = 12, Color? color, FontWeight weight = FontWeight.w500}) {
-    return GoogleFonts.plusJakartaSans(
+    return TextStyle(
+      fontFamily: 'Segoe UI',
       fontSize: size,
       fontWeight: weight,
       color: color ?? BrutalColors.grey,
@@ -199,6 +201,7 @@ class BrutalInput extends StatelessWidget {
   final String? errorText;
   final Widget? suffixIcon;
   final List<TextInputFormatter>? inputFormatters;
+  final TextCapitalization textCapitalization;
 
   const BrutalInput({
     Key? key,
@@ -210,6 +213,7 @@ class BrutalInput extends StatelessWidget {
     this.errorText,
     this.suffixIcon,
     this.inputFormatters,
+    this.textCapitalization = TextCapitalization.none,
   }) : super(key: key);
 
   @override
@@ -233,6 +237,7 @@ class BrutalInput extends StatelessWidget {
             controller: controller,
             obscureText: obscureText,
             keyboardType: keyboardType,
+            textCapitalization: textCapitalization,
             inputFormatters: inputFormatters,
             style: BrutalStyles.bodyStyle(size: 14, weight: FontWeight.w600),
             // Disable browser IME composing to prevent Flutter Web assertion crash:

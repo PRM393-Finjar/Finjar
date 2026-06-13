@@ -1,5 +1,7 @@
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:finjar_mobile/core/network/api_endpoints.dart';
 import 'package:finjar_mobile/core/theme/brutal_theme.dart';
 import 'package:finjar_mobile/core/network/api_client.dart';
 import 'package:finjar_mobile/core/storage/secure_storage.dart';
@@ -52,6 +54,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
           _lastName = data['lastName'] ?? data['LastName'] ?? '';
           _userName = data['userName'] ?? data['UserName'] ?? '';
           _userEmail = data['email'] ?? data['Email'] ?? 'Chưa có email';
+          if (_userEmail.isNotEmpty && _userEmail != 'Chưa có email') {
+            SecureStorage.saveUserEmail(_userEmail);
+          }
           _currency = data['preferredCurrency'] ?? data['PreferredCurrency'] ?? 'VND';
           AppSettings().setCurrency(_currency);
           _avatarUrl = data['avatarUrl'] ?? data['AvatarUrl'];
@@ -366,13 +371,121 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  Future<void> _handleLogout() async {
+  void _showLogoutDialog() {
+    final passwordCtrl = TextEditingController();
+    var isSubmitting = false;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: BrutalColors.bg,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setSheetState) => Padding(
+          padding: EdgeInsets.only(
+            left: 20,
+            right: 20,
+            top: 24,
+            bottom: MediaQuery.of(ctx).viewInsets.bottom + 24,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text('Xác nhận đăng xuất', style: BrutalStyles.titleStyle(size: 20)),
+              const SizedBox(height: 8),
+              Text(
+                'Nhập lại mật khẩu để đăng xuất an toàn.',
+                style: BrutalStyles.bodyStyle(size: 13, color: BrutalColors.grey),
+              ),
+              const SizedBox(height: 16),
+              BrutalInput(
+                label: 'Mật khẩu',
+                hint: '••••••••',
+                controller: passwordCtrl,
+                obscureText: true,
+              ),
+              const SizedBox(height: 24),
+              BrutalButton(
+                text: isSubmitting ? 'ĐANG XỬ LÝ...' : 'ĐĂNG XUẤT',
+                color: BrutalColors.destructive,
+                onTap: isSubmitting
+                    ? null
+                    : () async {
+                        if (passwordCtrl.text.isEmpty) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('Vui lòng nhập mật khẩu.')),
+                          );
+                          return;
+                        }
+
+                        setSheetState(() => isSubmitting = true);
+                        final success = await _handleLogout(passwordCtrl.text);
+                        if (!context.mounted) return;
+
+                        if (success) {
+                          Navigator.pop(ctx);
+                        } else {
+                          setSheetState(() => isSubmitting = false);
+                        }
+                      },
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<bool> _handleLogout(String password) async {
+    final email = (await SecureStorage.getUserEmail()) ?? _userEmail;
+    if (email.isEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Không tìm thấy email đăng nhập. Vui lòng đăng nhập lại.')),
+        );
+      }
+      await SecureStorage.clearSession();
+      if (mounted) context.go('/auth');
+      return true;
+    }
+
     setState(() => _isLoading = true);
     try {
-      await _apiClient.post('auth/logout');
+      await _apiClient.post(ApiEndpoints.login, data: {
+        'email': email,
+        'password': password,
+      });
+    } on DioException catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Mật khẩu không đúng. Không thể đăng xuất.')),
+        );
+      }
+      if (mounted) setState(() => _isLoading = false);
+      return false;
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Không thể xác minh mật khẩu. Thử lại sau.')),
+        );
+      }
+      if (mounted) setState(() => _isLoading = false);
+      return false;
+    }
+
+    try {
+      await _apiClient.post(ApiEndpoints.logout);
     } catch (_) {}
-    await SecureStorage.clearAll();
-    if (mounted) context.go('/auth');
+
+    await SecureStorage.clearSession();
+    if (mounted) {
+      setState(() => _isLoading = false);
+      context.go('/auth');
+    }
+    return true;
   }
 
   @override
@@ -517,7 +630,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     BrutalButton(
                       text: 'ĐĂNG XUẤT',
                       color: BrutalColors.destructive,
-                      onTap: _handleLogout,
+                      onTap: _showLogoutDialog,
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Phiên đăng nhập hết hạn sau 14 ngày không đăng nhập lại.',
+                      textAlign: TextAlign.center,
+                      style: BrutalStyles.bodyStyle(size: 11, color: BrutalColors.grey, weight: FontWeight.w500),
                     ),
                     const SizedBox(height: 16),
                   ],

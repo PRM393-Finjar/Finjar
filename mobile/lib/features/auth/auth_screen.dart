@@ -1,5 +1,9 @@
+import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:finjar_mobile/core/config/env.dart';
+import 'package:finjar_mobile/core/config/test_data.dart';
 import 'package:finjar_mobile/core/theme/brutal_theme.dart';
 import 'package:finjar_mobile/core/storage/secure_storage.dart';
 import 'package:finjar_mobile/core/network/api_client.dart';
@@ -26,6 +30,13 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
+    _tabController.addListener(() {
+      if (!_tabController.indexIsChanging) setState(() {});
+    });
+    if (kDebugMode) {
+      _emailController.text = TestData.userEmail;
+      _passwordController.text = TestData.userPassword;
+    }
   }
 
   @override
@@ -51,16 +62,44 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
       });
 
       if (response.statusCode == 200 || response.statusCode == 201) {
-        final token = response.data['token'] ?? response.data['accessToken'];
-        if (token != null) {
-          await SecureStorage.saveToken(token);
-          // Navigate to dashboard
-          if (mounted) context.go('/dashboard');
+        final data = response.data;
+        final token = data is Map
+            ? (data['accessToken'] ?? data['AccessToken'] ?? data['token'])
+            : null;
+        if (token != null && token.toString().isNotEmpty) {
+          await SecureStorage.saveToken(token.toString());
+          await SecureStorage.recordSuccessfulLogin(_emailController.text.trim());
+          final onboardingDone = data is Map
+              ? (data['isOnboardingCompleted'] ?? data['IsOnboardingCompleted'] ?? false) as bool
+              : false;
+          await SecureStorage.saveOnboardingCompleted(onboardingDone);
+          if (!mounted) return;
+          context.go(onboardingDone ? '/dashboard' : '/onboarding');
+          return;
         }
+        setState(() {
+          _errorMessage = 'Đăng nhập thất bại: API không trả token.';
+        });
+        return;
       }
+      setState(() {
+        _errorMessage = 'Đăng nhập thất bại (mã ${response.statusCode}).';
+      });
+    } on DioException catch (e) {
+      setState(() {
+        if (e.type == DioExceptionType.connectionError ||
+            e.type == DioExceptionType.connectionTimeout) {
+          _errorMessage =
+              'Không kết nối được backend tại ${Env.apiBaseUrl}. Hãy chạy PostgreSQL + API (port 5284).';
+        } else if (e.response?.statusCode == 400 || e.response?.statusCode == 401) {
+          _errorMessage = 'Sai email hoặc mật khẩu. Dùng: ${TestData.userEmail} / ${TestData.userPassword}';
+        } else {
+          _errorMessage = 'Đăng nhập thất bại: ${e.message ?? 'Lỗi không xác định'}';
+        }
+      });
     } catch (e) {
       setState(() {
-        _errorMessage = 'Đăng nhập thất bại. Vui lòng kiểm tra lại tài khoản và mật khẩu.';
+        _errorMessage = 'Đăng nhập thất bại: $e';
       });
     } finally {
       setState(() {
@@ -94,11 +133,21 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
       });
 
       if (response.statusCode == 200 || response.statusCode == 201) {
-        // Clear password and personal details, keeping the email pre-filled
+        final data = response.data;
+        final token = data is Map
+            ? (data['accessToken'] ?? data['AccessToken'] ?? data['token'])
+            : null;
+        if (token != null && token.toString().isNotEmpty) {
+          await SecureStorage.saveToken(token.toString());
+          await SecureStorage.recordSuccessfulLogin(_emailController.text.trim());
+          await SecureStorage.saveOnboardingCompleted(false);
+          if (mounted) context.go('/onboarding');
+          return;
+        }
+
         _passwordController.clear();
         _nameController.clear();
         _usernameController.clear();
-        // Switch to login tab
         _tabController.animateTo(0);
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Đăng ký thành công! Hãy đăng nhập.')),
@@ -170,7 +219,7 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
               // Card containing inputs
               BrutalCard(
                 child: SizedBox(
-                  height: 320,
+                  height: _tabController.index == 0 ? 320 : 420,
                   child: TabBarView(
                     controller: _tabController,
                     children: [
@@ -209,6 +258,7 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
                             label: 'Họ và tên',
                             hint: 'Nguyễn Văn A',
                             controller: _nameController,
+                            textCapitalization: TextCapitalization.words,
                           ),
                           const SizedBox(height: 12),
                           BrutalInput(
@@ -248,6 +298,15 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
                     _errorMessage!,
                     style: BrutalStyles.bodyStyle(size: 13, color: BrutalColors.destructive, weight: FontWeight.w700),
                   ),
+                ),
+              ],
+
+              if (kDebugMode) ...[
+                const SizedBox(height: 12),
+                Text(
+                  'Test user: ${TestData.userEmail} / ${TestData.userPassword}',
+                  textAlign: TextAlign.center,
+                  style: BrutalStyles.bodyStyle(size: 11, color: BrutalColors.grey, weight: FontWeight.w500),
                 ),
               ],
             ],
