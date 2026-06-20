@@ -1,7 +1,8 @@
-﻿using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using Personal_Finance_Management.Repository;
 using Personal_Finance_Management.Repository.Entity;
+using Personal_Finance_Management.Repository.Enum;
 using Personal_Finance_Management.Service.Base;
 
 
@@ -116,7 +117,7 @@ public class Service : IService
         var limit = new SpendingLimit()
         {
             LimitAmount = request.LimitAmount,
-            Period = request.Period,
+            Period = ServiceTextHelper.NormalizeEnum<LimitPeriod>(request.Period),
             AlertAtPercentage = request.AlertAtPercentage,
             IsActive = true,
             UserId = userId,
@@ -126,12 +127,12 @@ public class Service : IService
             UpdatedAt = now,
             ResetAt = now,
         };
-        if (request.TargetType == "Category")
+        if (string.Equals(request.TargetType, "Category", StringComparison.OrdinalIgnoreCase))
         {
             limit.CategoryId = request.TargetId;
         }
 
-        if (request.TargetType == "Jar")
+        if (string.Equals(request.TargetType, "Jar", StringComparison.OrdinalIgnoreCase))
         {
             limit.JarId = request.TargetId;
         }

@@ -290,24 +290,13 @@ public class Service : IService
             AccountType = response.defaultFinancialAccount.accountType,
             ConnectionMode = "Manual",
             Currency = "VND",
-            CurrentBalance = 0m,
+            CurrentBalance = (decimal)request.monthlyIncome,
             IsDefault = true,
             IsActive = true,
             CreatedAt = now,
             UpdatedAt = now
         };
         _dbContext.FinancialAccounts.Add(savedFinancialAccount);
-        var savedCategory = response.recommendedCategories.Select(x => new Repository.Entity.Category()
-        {
-            OwnerUserId = userIdGuid,
-            Name = x.name,
-            Icon = x.icon,
-            IsDefault = false,
-            IsActive = true,
-            CreatedAt = now,
-            UpdatedAt = now
-        });
-        _dbContext.Categories.AddRange(savedCategory);
 
         var jarSetup = new Repository.Entity.JarSetup()
         {
@@ -318,18 +307,33 @@ public class Service : IService
         await _dbContext.SaveChangesAsync();
         if(request.budgetMethodPreference != "Custom")
         {
-            var savedJar = response.recommendedJars.Select(x => new Repository.Entity.Jar()
-            {
-                UserId = userIdGuid,
-                Name = x.name,
-                IsDefault = true,
-                Balance = 0m,
-                Currency = "VND",
-                Status = "Active",
-                JarSetupId = jarSetup.Id,
-                CreatedAt = now,
-                UpdatedAt = now
-            });
+            var savedJar = response.recommendedJars.Select(x => {
+                decimal percentage = 0;
+                if (request.budgetMethodPreference == "SixJars")
+                {
+                    percentage = 17;
+                }
+                else if (request.budgetMethodPreference == "Rule503020")
+                {
+                    if (x.name == "Needs") percentage = 50;
+                    else if (x.name == "Wants") percentage = 30;
+                    else if (x.name == "Savings/Investments") percentage = 20;
+                }
+                decimal jarBalance = ((decimal)request.monthlyIncome * percentage) / 100m;
+
+                return new Repository.Entity.Jar()
+                {
+                    UserId = userIdGuid,
+                    Name = x.name,
+                    IsDefault = true,
+                    Balance = jarBalance,
+                    Currency = "VND",
+                    Status = "Active",
+                    JarSetupId = jarSetup.Id,
+                    CreatedAt = now,
+                    UpdatedAt = now
+                };
+            }).ToList();
             _dbContext.Jars.AddRange(savedJar);
         }
         user.IsOnboardingCompleted = true;
