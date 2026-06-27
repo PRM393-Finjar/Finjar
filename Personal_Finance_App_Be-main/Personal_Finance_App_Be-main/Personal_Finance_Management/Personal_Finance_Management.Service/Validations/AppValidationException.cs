@@ -30,4 +30,9 @@ public class AppValidationException : Exception
     {
         return new AppValidationException(message, 404, new { field, code });
     }
+
+    public static AppValidationException Forbidden(string message, string code)
+    {
+        return new AppValidationException(message, 403, new { code });
+    }
 }

@@ -19,6 +19,8 @@ export const ROUTES = {
   NOTIFICATIONS: "/notifications",
   PROFILE: "/profile",
   ONBOARDING: "/onboarding",
+  VERIFY_EMAIL: "/verify-email",
+  VERIFY_EMAIL_PENDING: "/verify-email/pending",
   ADMIN_DASHBOARD: "/admin",
   ADMIN_USERS: "/admin/users",
   ADMIN_NOTIFICATIONS: "/admin/notifications",

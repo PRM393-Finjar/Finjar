@@ -21,6 +21,8 @@ using NotificationService = Personal_Finance_Management.Service.notification;
 using AIService = Personal_Finance_Management.Service.AI;
 
 using Personal_Finance_Management.Service.Seeding;
+using Personal_Finance_Management.Service.Email;
+using EmailVerificationService = Personal_Finance_Management.Service.EmailVerification;
 
 using financialAccountService = Personal_Finance_Management.Service.FinancialAccount;
 using jarsService = Personal_Finance_Management.Service.Jar;
@@ -79,8 +81,40 @@ builder.Services.AddJwtServices(builder.Configuration);
 builder.Services.AddAuthorizationPolicies();
 builder.Services.Configure<SeedAccountsOptions>(
     builder.Configuration.GetSection(SeedAccountsOptions.SectionName));
+builder.Services.AddOptions<EmailOptions>()
+    .Bind(builder.Configuration.GetSection(EmailOptions.SectionName))
+    .PostConfigure<IConfiguration>((options, config) =>
+    {
+        var mail = config.GetSection(LegacyMailOptions.SectionName).Get<LegacyMailOptions>();
+        if (mail is null
+            || string.IsNullOrWhiteSpace(mail.Host)
+            || string.IsNullOrWhiteSpace(mail.Password)
+            || string.IsNullOrWhiteSpace(mail.Mail))
+        {
+            return;
+        }
 
+        options.UseSmtp = true;
+        options.FromAddress = mail.Mail;
+        options.FromName = string.IsNullOrWhiteSpace(mail.DisplayName) ? options.FromName : mail.DisplayName;
+        options.SmtpHost = mail.Host;
+        options.SmtpPort = mail.Port > 0 ? mail.Port : 587;
+        options.SmtpUsername = mail.Mail;
+        options.SmtpPassword = mail.Password;
+        options.SmtpUseSsl = true;
+    });
 
+builder.Services.AddScoped<SmtpEmailSender>();
+builder.Services.AddScoped<LoggingEmailSender>();
+builder.Services.AddScoped<IEmailSender>(sp =>
+{
+    var options = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<EmailOptions>>().Value;
+    return options.UseSmtp
+        ? sp.GetRequiredService<SmtpEmailSender>()
+        : sp.GetRequiredService<LoggingEmailSender>();
+});
+
+builder.Services.AddScoped<EmailVerificationService.IService, EmailVerificationService.Service>();
 builder.Services.AddScoped<authService.IService, authService.Service>();
 builder.Services.AddScoped<jwtService.IService, jwtService.Service>();
 builder.Services.AddScoped<validationService.IServices, validationService.ValidationServices>();

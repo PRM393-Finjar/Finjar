@@ -1,6 +1,6 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
-import type { AuthResponse, LoginRequest, RegisterRequest } from "../types";
+import type { AuthResponse, LoginRequest, RegisterRequest, RegisterResponse } from "../types";
 import { profileService } from "@/features/profile/services";
 import { authService } from "../services";
 import { useAuthStore } from "../store";
@@ -96,16 +96,25 @@ export function useLoginMutation() {
 
 export function useRegisterMutation() {
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
   const { setAuth } = useAuthStore();
   const goAfterAuth = useAuthSuccessNavigation();
 
-  return useMutation<AuthResponse, Error, RegisterRequest>({
+  return useMutation<RegisterResponse, Error, RegisterRequest>({
     mutationFn: (payload) => authService.register(payload),
     onSuccess: async (response) => {
+      if (response.requiresEmailVerification || !response.accessToken) {
+        navigate(
+          `${ROUTES.VERIFY_EMAIL_PENDING}?email=${encodeURIComponent(response.email)}`,
+          { replace: true },
+        );
+        return;
+      }
+
       void queryClient.invalidateQueries({ queryKey: ["user"] });
       void queryClient.invalidateQueries({ queryKey: ["categories"] });
       void queryClient.invalidateQueries({ queryKey: ["dashboard"] });
-      let user = authResponseToUserPayload(response);
+      let user = authResponseToUserPayload(response as AuthResponse);
       try {
         const me = await profileService.getMe();
         user = {
@@ -120,11 +129,11 @@ export function useRegisterMutation() {
         /* giữ payload từ register nếu /user/me lỗi */
       }
       setAuth({
-        accessToken: response.accessToken,
+        accessToken: response.accessToken!,
         role: apiRoleToAppRole(response.role),
         user,
       });
-      goAfterAuth({ ...response, isOnboardingCompleted: user.isOnboardingCompleted });
+      goAfterAuth({ ...(response as AuthResponse), isOnboardingCompleted: user.isOnboardingCompleted });
     },
   });
 }

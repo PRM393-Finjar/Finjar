@@ -93,6 +93,12 @@ public class ValidationServices : IServices
         {
             throw AppValidationException.Conflict("Email already exists.", "email", "AUTH_CONFLICT");
         }
+
+        if (await _dbContext.PendingRegistrations.AnyAsync(p =>
+                p.Username.ToLower() == username.ToLower() && p.Email != email))
+        {
+            throw AppValidationException.Conflict("Username already exists.", "username", "AUTH_CONFLICT");
+        }
     }
 
     private static string ToCamelCase(string value)

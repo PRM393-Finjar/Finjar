@@ -4,6 +4,7 @@ import 'package:finjar_mobile/core/storage/secure_storage.dart';
 import 'package:finjar_mobile/core/theme/brutal_theme.dart';
 import 'package:finjar_mobile/core/theme/app_settings.dart';
 import 'package:finjar_mobile/features/auth/auth_screen.dart';
+import 'package:finjar_mobile/features/auth/verify_email_pending_screen.dart';
 import 'package:finjar_mobile/features/onboarding/screens/onboarding_screen.dart';
 import 'package:finjar_mobile/features/dashboard/dashboard_screen.dart';
 import 'package:finjar_mobile/features/transactions/transactions_screen.dart';
@@ -30,14 +31,15 @@ final GoRouter appRouter = GoRouter(
     final location = state.matchedLocation;
     final isAuth = location == '/auth';
     final isOnboarding = location == '/onboarding';
+    final isVerifyEmail = location.startsWith('/verify-email');
 
     if (token != null && token.isNotEmpty && await SecureStorage.isSessionExpired()) {
       await SecureStorage.clearSession();
-      return isAuth ? null : '/auth';
+      return isAuth || isVerifyEmail ? null : '/auth';
     }
 
     if (token == null || token.isEmpty) {
-      return isAuth ? null : '/auth';
+      return isAuth || isVerifyEmail ? null : '/auth';
     }
 
     if (!onboardingCompleted) {
@@ -54,6 +56,23 @@ final GoRouter appRouter = GoRouter(
     GoRoute(
       path: '/auth',
       builder: (context, state) => const AuthScreen(),
+    ),
+    GoRoute(
+      path: '/verify-email',
+      redirect: (context, state) {
+        final email = state.uri.queryParameters['email'] ?? '';
+        if (email.isNotEmpty) {
+          return '/verify-email/pending?email=${Uri.encodeComponent(email)}';
+        }
+        return '/verify-email/pending';
+      },
+    ),
+    GoRoute(
+      path: '/verify-email/pending',
+      builder: (context, state) {
+        final email = state.uri.queryParameters['email'] ?? '';
+        return VerifyEmailPendingScreen(email: email);
+      },
     ),
     GoRoute(
       path: '/onboarding',

@@ -28,10 +28,25 @@ public class AuthController : ControllerBase
         var result = await _authService.Login(request);
         return Ok(result);
     }
+
     [HttpPost("logout")]
     public async Task<IActionResult> Logout()
     {
        var result = await _authService.Logout();
         return Ok(new { Message = result });
+    }
+
+    [HttpPost("verify-email")]
+    public async Task<IActionResult> VerifyEmailOtp([FromBody] AuthRequest.VerifyEmailOtpRequest request)
+    {
+        await _authService.VerifyEmailOtpAsync(request);
+        return Ok(new { message = "Email đã được xác thực. Bạn có thể đăng nhập." });
+    }
+
+    [HttpPost("resend-verification")]
+    public async Task<IActionResult> ResendVerification([FromBody] AuthRequest.ResendVerificationRequest request)
+    {
+        await _authService.ResendVerificationEmailAsync(request);
+        return Ok(new { message = "Nếu email tồn tại và chưa xác thực, chúng tôi đã gửi lại mã OTP." });
     }
 }

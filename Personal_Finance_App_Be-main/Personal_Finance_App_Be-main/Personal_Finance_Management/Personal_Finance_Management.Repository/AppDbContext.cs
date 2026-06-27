@@ -28,6 +28,8 @@ public class AppDbContext : DbContext
     public DbSet<Notification> Notifications { get; set; }
     public DbSet<ImportTransactionDraft> ImportTransactionDrafts { get; set; }
     public DbSet<AiSetting> AiSettings { get; set; }
+    public DbSet<EmailVerificationToken> EmailVerificationTokens { get; set; }
+    public DbSet<PendingRegistration> PendingRegistrations { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -105,6 +107,9 @@ public class AppDbContext : DbContext
                 .HasDefaultValue("VND");
 
             builder.Property(a => a.IsOnboardingCompleted)
+                .HasDefaultValue(false);
+
+            builder.Property(a => a.IsEmailVerified)
                 .HasDefaultValue(false);
 
             builder.Property(a => a.CreatedAt)
@@ -941,6 +946,70 @@ public class AppDbContext : DbContext
                 .WithMany()
                 .HasForeignKey(a => a.UpdatedByAdminId)
                 .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<EmailVerificationToken>(builder =>
+        {
+            builder.ToTable("email_verification_tokens");
+
+            builder.Property(t => t.TokenHash)
+                .IsRequired()
+                .HasMaxLength(128);
+
+            builder.HasIndex(t => t.TokenHash)
+                .IsUnique();
+
+            builder.HasIndex(t => new { t.AccountId, t.UsedAt })
+                .HasDatabaseName("ix_email_verification_tokens_account_used");
+
+            builder.Property(t => t.CreatedAt)
+                .HasDefaultValueSql("NOW()");
+
+            builder.HasOne(t => t.Account)
+                .WithMany()
+                .HasForeignKey(t => t.AccountId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<PendingRegistration>(builder =>
+        {
+            builder.ToTable("pending_registrations");
+
+            builder.Property(p => p.Email)
+                .IsRequired()
+                .HasMaxLength(256);
+
+            builder.Property(p => p.Username)
+                .IsRequired()
+                .HasMaxLength(100);
+
+            builder.Property(p => p.PasswordHash)
+                .IsRequired()
+                .HasMaxLength(256);
+
+            builder.Property(p => p.FirstName)
+                .IsRequired()
+                .HasMaxLength(100);
+
+            builder.Property(p => p.LastName)
+                .IsRequired()
+                .HasMaxLength(100);
+
+            builder.Property(p => p.OtpHash)
+                .IsRequired()
+                .HasMaxLength(128);
+
+            builder.HasIndex(p => p.Email)
+                .IsUnique();
+
+            builder.HasIndex(p => p.Username)
+                .IsUnique();
+
+            builder.Property(p => p.CreatedAt)
+                .HasDefaultValueSql("NOW()");
+
+            builder.Property(p => p.UpdatedAt)
+                .HasDefaultValueSql("NOW()");
         });
     }
 }

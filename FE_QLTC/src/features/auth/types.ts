@@ -28,6 +28,13 @@ export interface AuthResponse extends AuthUser {
   accessToken: string;
 }
 
+export interface RegisterResponse extends AuthUser {
+  accessToken?: string | null;
+  requiresEmailVerification?: boolean;
+  isEmailVerified?: boolean;
+  message?: string | null;
+}
+
 export interface AuthState {
   accessToken: string | null;
   user: AuthUser | null;

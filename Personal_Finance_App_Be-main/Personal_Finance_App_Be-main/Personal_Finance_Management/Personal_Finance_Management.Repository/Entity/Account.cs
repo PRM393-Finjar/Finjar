@@ -1,4 +1,4 @@
-﻿using Personal_Finance_Management.Repository.Abtraction;
+using Personal_Finance_Management.Repository.Abtraction;
 
 namespace Personal_Finance_Management.Repository.Entity;
 
@@ -15,6 +15,7 @@ public class Account : BaseEntity, IAudictableEntity
     public string? StatusReason { get; set; }
     public string PreferredCurrency { get; set; } = "VND";
     public bool IsOnboardingCompleted { get; set; } = false;
+    public bool IsEmailVerified { get; set; } = false;
 
     public Guid RoleId { get; set; }
     public Role Role { get; set; } = null!;

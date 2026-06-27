@@ -126,6 +126,7 @@ public class DatabaseSeedService
                 RoleId = role.Id,
                 Status = AccountStatus.Active.ToString(),
                 PreferredCurrency = "VND",
+                IsEmailVerified = true,
                 CreatedAt = now,
                 UpdatedAt = now
             });
@@ -137,6 +138,7 @@ public class DatabaseSeedService
         account.FirstName = firstName;
         account.LastName = lastName;
         account.Status = AccountStatus.Active.ToString();
+        account.IsEmailVerified = true;
         account.UpdatedAt = now;
 
         if (_options.ResetPasswords)

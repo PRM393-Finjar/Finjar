@@ -1,4 +1,4 @@
-import type { AuthResponse, LoginRequest, RegisterRequest } from "./types";
+import type { AuthResponse, LoginRequest, RegisterRequest, RegisterResponse } from "./types";
 import { mapAxiosAuthError } from "./backendAuth";
 import { apiClient } from "@/lib/axios";
 import { mockData } from "@/lib/mockData";
@@ -16,12 +16,35 @@ interface BackendAuthResponse {
   firstName?: string | null;
   lastName?: string | null;
   email: string;
-  accessToken: string;
+  accessToken?: string | null;
   role?: string | null;
   isOnboardingCompleted?: boolean;
+  isEmailVerified?: boolean;
+  requiresEmailVerification?: boolean;
+  message?: string | null;
 }
 
 function adaptAuthResponse(be: BackendAuthResponse): AuthResponse {
+  const first = be.firstName?.trim() ?? "";
+  const last = be.lastName?.trim() ?? "";
+  const token = be.accessToken?.trim();
+  if (!token) {
+    throw new Error("Thiếu access token trong phản hồi đăng nhập.");
+  }
+  return {
+    id: be.id,
+    username: be.username,
+    firstName: first || be.username,
+    lastName: last,
+    email: be.email,
+    role: String(be.role ?? "User"),
+    isOnboardingCompleted: be.isOnboardingCompleted ?? true,
+    isEmailVerified: be.isEmailVerified ?? true,
+    accessToken: token,
+  };
+}
+
+function adaptRegisterResponse(be: BackendAuthResponse): RegisterResponse {
   const first = be.firstName?.trim() ?? "";
   const last = be.lastName?.trim() ?? "";
   return {
@@ -31,8 +54,11 @@ function adaptAuthResponse(be: BackendAuthResponse): AuthResponse {
     lastName: last,
     email: be.email,
     role: String(be.role ?? "User"),
-    isOnboardingCompleted: be.isOnboardingCompleted ?? true,
-    accessToken: be.accessToken,
+    isOnboardingCompleted: be.isOnboardingCompleted ?? false,
+    isEmailVerified: be.isEmailVerified ?? false,
+    requiresEmailVerification: be.requiresEmailVerification ?? !be.accessToken,
+    accessToken: be.accessToken ?? null,
+    message: be.message ?? null,
   };
 }
 
@@ -67,7 +93,7 @@ export const authService = {
     return requestWithStrategy(AUTH_STRATEGY.login, realRequest, mockRequest);
   },
 
-  async register(payload: RegisterRequest): Promise<AuthResponse> {
+  async register(payload: RegisterRequest): Promise<RegisterResponse> {
     const realRequest = async () => {
       try {
         const be = (await apiClient.post<BackendAuthResponse>(
@@ -80,7 +106,7 @@ export const authService = {
             lastName: payload.lastName.trim(),
           },
         )) as unknown as BackendAuthResponse;
-        return adaptAuthResponse(be);
+        return adaptRegisterResponse(be);
       } catch (e) {
         throw mapAxiosAuthError(e);
       }
@@ -88,15 +114,40 @@ export const authService = {
 
     const mockRequest = async () => {
       await wait(300);
-      return mockData.auth.register(
+      const mock = mockData.auth.register(
         payload.username,
         payload.email,
         payload.firstName,
         payload.lastName,
       );
+      return adaptRegisterResponse({
+        ...mock,
+        requiresEmailVerification: false,
+        isEmailVerified: true,
+      });
     };
 
     return requestWithStrategy(AUTH_STRATEGY.register, realRequest, mockRequest);
+  },
+
+  async verifyEmailOtp(email: string, otp: string): Promise<{ message: string }> {
+    try {
+      const be = (await apiClient.post<{ message: string }>(
+        API_ENDPOINT.AUTH.VERIFY_EMAIL,
+        { email: email.trim(), otp: otp.trim() },
+      )) as unknown as { message: string };
+      return be;
+    } catch (e) {
+      throw mapAxiosAuthError(e);
+    }
+  },
+
+  async resendVerification(email: string): Promise<{ message: string }> {
+    const be = (await apiClient.post<{ message: string }>(
+      API_ENDPOINT.AUTH.RESEND_VERIFICATION,
+      { email: email.trim() },
+    )) as unknown as { message: string };
+    return be;
   },
 
   async logout(): Promise<void> {

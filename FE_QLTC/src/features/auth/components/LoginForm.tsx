@@ -1,16 +1,25 @@
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { useMutation } from "@tanstack/react-query";
+import { Link } from "react-router-dom";
 import { env } from "@/lib/env";
 import { Eye, EyeOff, Loader2 } from "lucide-react";
 import { Input } from "@/shared/components/ui/input";
 import { Label } from "@/shared/components/ui/label";
+import { ROUTES } from "@/shared/constants/routes";
 import { loginSchema, type LoginFormData } from "../schema";
 import { useLoginMutation } from "../hooks/useAuth";
+import { authService } from "../services";
 
 export function LoginForm() {
   const { mutate: login, isPending, error } = useLoginMutation();
   const [showPassword, setShowPassword] = useState(false);
+  const [lastEmail, setLastEmail] = useState("");
+
+  const resend = useMutation({
+    mutationFn: (email: string) => authService.resendVerification(email),
+  });
 
   const {
     register,
@@ -33,7 +42,13 @@ export function LoginForm() {
   });
 
   return (
-    <form onSubmit={handleSubmit((data) => login(data))} className="space-y-5">
+    <form
+      onSubmit={handleSubmit((data) => {
+        setLastEmail(data.email);
+        login(data);
+      })}
+      className="space-y-5"
+    >
       <div className="space-y-2">
         <Label htmlFor="email">Địa chỉ email</Label>
         <Input
@@ -79,6 +94,22 @@ export function LoginForm() {
       </div>
 
       {error ? <p className="brutal-field-error">{error.message}</p> : null}
+      {error?.message.toLowerCase().includes("xác thực") && lastEmail ? (
+        <div className="space-y-2 text-sm">
+          <button
+            type="button"
+            className="font-extrabold underline"
+            disabled={resend.isPending}
+            onClick={() => resend.mutate(lastEmail)}
+          >
+            Gửi lại mã OTP
+          </button>
+          <Link to={`${ROUTES.VERIFY_EMAIL_PENDING}?email=${encodeURIComponent(lastEmail)}`} className="block underline">
+            Nhập mã OTP xác thực
+          </Link>
+          {resend.isSuccess ? <p className="text-emerald-700">Đã gửi lại mã OTP (nếu hợp lệ).</p> : null}
+        </div>
+      ) : null}
 
       <button
         type="submit"

@@ -7,8 +7,10 @@ using Personal_Finance_Management.Repository.Constants;
 using Personal_Finance_Management.Repository.Entity;
 using Personal_Finance_Management.Repository.Enum;
 using Personal_Finance_Management.Service.Base;
+using Personal_Finance_Management.Service.Validations;
 using ValidationService = Personal_Finance_Management.Service.Validations;
 using JwtService = Personal_Finance_Management.Service.JwtService;
+using EmailVerificationService = Personal_Finance_Management.Service.EmailVerification;
 
 namespace Personal_Finance_Management.Service.Auth;
 
@@ -20,17 +22,20 @@ public class Service : IService
     private readonly AppDbContext _dbContext;
     private readonly JwtService.IService _jwtService;
     private readonly ValidationService.IServices _validationServices;
+    private readonly EmailVerificationService.IService _emailVerificationService;
     private readonly IHttpContextAccessor _httpContext;
 
     public Service(
         AppDbContext dbContext,
         JwtService.IService jwtService,
         ValidationService.IServices validationServices,
+        EmailVerificationService.IService emailVerificationService,
         IHttpContextAccessor httpContext)
     {
         _dbContext = dbContext;
         _jwtService = jwtService;
         _validationServices = validationServices;
+        _emailVerificationService = emailVerificationService;
         _httpContext = httpContext;
     }
 
@@ -43,49 +48,26 @@ public class Service : IService
         var firstName = ServiceTextHelper.NormalizeRequiredText(request.FirstName, "firstName", "First name is required.");
         var lastName = ServiceTextHelper.NormalizeRequiredText(request.LastName, "lastName", "Last name is required.");
 
-        var now = DateTimeOffset.UtcNow;
-        var role = await EnsureUserRole(now);
-
-        var user = new Account
-        {
-            Id = Guid.NewGuid(),
-            Username = username,
-            Email = email,
-            PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.Password, 12),
-            FirstName = firstName,
-            LastName = lastName,
-            RoleId = role.Id,
-            CreatedAt = now,
-            UpdatedAt = now
-        };
-
-        _dbContext.Accounts.Add(user);
-        await _dbContext.SaveChangesAsync();
-
-        var token = _jwtService.GenerateAccessToken(new[]
-        {
-            new Claim(JwtRegisteredClaimNames.Sub, user.Id.ToString()),
-            new Claim(ClaimTypes.NameIdentifier, user.Id.ToString()),
-            new Claim("id", user.Id.ToString()),
-            new Claim(ClaimTypes.Name, user.Username),
-            new Claim("username", user.Username),
-            new Claim(ClaimTypes.Email, user.Email),
-            new Claim("firstName", user.FirstName),
-            new Claim("lastName", user.LastName),
-            new Claim("isOnboardingCompleted", user.IsOnboardingCompleted ? "true" : "false"),
-            new Claim(ClaimTypes.Role, role.Code)
-        });
+        await _emailVerificationService.StartPendingRegistrationAsync(
+            username,
+            email,
+            request.Password,
+            firstName,
+            lastName);
 
         return new Response.RegisterResponse
         {
-            Id = user.Id,
-            Username = user.Username,
-            FirstName = user.FirstName,
-            LastName = user.LastName,
-            Email = user.Email,
-            Role = role.Code,
-            IsOnboardingCompleted = user.IsOnboardingCompleted,
-            AccessToken = token
+            Id = Guid.Empty,
+            Username = username,
+            FirstName = firstName,
+            LastName = lastName,
+            Email = email,
+            Role = DefaultRoleCode,
+            IsOnboardingCompleted = false,
+            IsEmailVerified = false,
+            RequiresEmailVerification = true,
+            AccessToken = null,
+            Message = "Mã OTP đã được gửi tới email. Nhập mã để hoàn tất đăng ký."
         };
     }
 
@@ -122,19 +104,14 @@ public class Service : IService
             throw new Exception("Invalid email or password.");
         }
 
-        var token = _jwtService.GenerateAccessToken(new[]
+        if (!user.IsEmailVerified)
         {
-            new Claim(JwtRegisteredClaimNames.Sub, user.Id.ToString()),
-            new Claim(ClaimTypes.NameIdentifier, user.Id.ToString()),
-            new Claim("id", user.Id.ToString()),
-            new Claim(ClaimTypes.Name, user.Username),
-            new Claim("username", user.Username),
-            new Claim(ClaimTypes.Email, user.Email),
-            new Claim("firstName", user.FirstName),
-            new Claim("lastName", user.LastName),
-            new Claim("isOnboardingCompleted", user.IsOnboardingCompleted ? "true" : "false"),
-            new Claim(ClaimTypes.Role, user.Role.Code)
-        });
+            throw AppValidationException.Forbidden(
+                "Email chưa được xác thực. Vui lòng nhập mã OTP hoặc gửi lại mã mới.",
+                "EMAIL_NOT_VERIFIED");
+        }
+
+        var token = BuildAccessToken(user, user.Role.Code);
         
         var hasLimitReset = false;
         var activeLimit = _dbContext.SpendingLimits.Where(l => l.UserId == user.Id && l.IsActive == true);
@@ -169,13 +146,42 @@ public class Service : IService
             Email = user.Email,
             Role = user.Role.Code,
             IsOnboardingCompleted = user.IsOnboardingCompleted,
+            IsEmailVerified = user.IsEmailVerified,
             AccessToken = token
         });
+    }
+
+    public async Task VerifyEmailOtpAsync(Request.VerifyEmailOtpRequest request)
+    {
+        await _emailVerificationService.VerifyOtpAsync(request.Email, request.Otp);
+    }
+
+    public async Task ResendVerificationEmailAsync(Request.ResendVerificationRequest request)
+    {
+        await _emailVerificationService.ResendAsync(request.Email);
     }
 
     public async Task<string> Logout()
     {
         ServiceClaimHelper.GetRequiredAccountId(_httpContext, "Invalid user id.");
         return await Task.FromResult("Logout successful.");
+    }
+
+    private string BuildAccessToken(Account user, string roleCode)
+    {
+        return _jwtService.GenerateAccessToken(new[]
+        {
+            new Claim(JwtRegisteredClaimNames.Sub, user.Id.ToString()),
+            new Claim(ClaimTypes.NameIdentifier, user.Id.ToString()),
+            new Claim("id", user.Id.ToString()),
+            new Claim(ClaimTypes.Name, user.Username),
+            new Claim("username", user.Username),
+            new Claim(ClaimTypes.Email, user.Email),
+            new Claim("firstName", user.FirstName),
+            new Claim("lastName", user.LastName),
+            new Claim("isOnboardingCompleted", user.IsOnboardingCompleted ? "true" : "false"),
+            new Claim("isEmailVerified", user.IsEmailVerified ? "true" : "false"),
+            new Claim(ClaimTypes.Role, roleCode)
+        });
     }
 }

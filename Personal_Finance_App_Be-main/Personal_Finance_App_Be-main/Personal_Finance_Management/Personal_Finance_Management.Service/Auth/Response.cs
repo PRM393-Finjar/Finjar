@@ -11,7 +11,10 @@ public class Response
         public required string Email { get; set; }
         public required string Role { get; set; }
         public bool IsOnboardingCompleted { get; set; }
-        public required string AccessToken { get; set; }
+        public bool IsEmailVerified { get; set; }
+        public bool RequiresEmailVerification { get; set; }
+        public string? AccessToken { get; set; }
+        public string? Message { get; set; }
     }
     public class LoginResponse
     {
@@ -22,6 +25,7 @@ public class Response
         public required string Email { get; set; }
         public required string Role { get; set; }
         public bool IsOnboardingCompleted { get; set; }
+        public bool IsEmailVerified { get; set; }
         public required string AccessToken { get; set; }
 
     }

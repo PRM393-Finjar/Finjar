@@ -1,5 +1,5 @@
 import { createBrowserRouter } from "react-router-dom";
-import { LoginPage, RegisterPage } from "@/features/auth";
+import { LoginPage, RegisterPage, VerifyEmailPendingPage } from "@/features/auth";
 import { DashboardPage } from "@/features/dashboard";
 import {
   TransactionsPage,
@@ -45,6 +45,22 @@ export const router = createBrowserRouter([
     element: (
       <GuestRoute>
         <RegisterPage />
+      </GuestRoute>
+    ),
+  },
+  {
+    path: ROUTES.VERIFY_EMAIL,
+    element: (
+      <GuestRoute>
+        <VerifyEmailPendingPage />
+      </GuestRoute>
+    ),
+  },
+  {
+    path: ROUTES.VERIFY_EMAIL_PENDING,
+    element: (
+      <GuestRoute>
+        <VerifyEmailPendingPage />
       </GuestRoute>
     ),
   },

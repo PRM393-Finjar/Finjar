@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:finjar_mobile/core/config/env.dart';
 import 'package:finjar_mobile/core/config/test_data.dart';
@@ -21,10 +22,14 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
   final _passwordController = TextEditingController();
   final _nameController = TextEditingController();
   final _usernameController = TextEditingController();
+  final _otpController = TextEditingController();
 
   final _apiClient = ApiClient();
   bool _isLoading = false;
+  bool _awaitingOtp = false;
+  String _pendingEmail = '';
   String? _errorMessage;
+  String? _infoMessage;
 
   @override
   void initState() {
@@ -46,6 +51,7 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
     _passwordController.dispose();
     _nameController.dispose();
     _usernameController.dispose();
+    _otpController.dispose();
     super.dispose();
   }
 
@@ -91,6 +97,14 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
             e.type == DioExceptionType.connectionTimeout) {
           _errorMessage =
               'Không kết nối được backend tại ${Env.apiBaseUrl}. Hãy chạy PostgreSQL + API (port 5284).';
+        } else if (e.response?.statusCode == 403) {
+          final email = _emailController.text.trim();
+          if (email.isNotEmpty && mounted) {
+            context.go('/verify-email/pending?email=${Uri.encodeComponent(email)}');
+            return;
+          }
+          final msg = e.response?.data?['message']?.toString() ?? e.response?.data?['error']?.toString();
+          _errorMessage = msg ?? 'Email chưa được xác thực. Nhập mã OTP để hoàn tất đăng ký.';
         } else if (e.response?.statusCode == 400 || e.response?.statusCode == 401) {
           _errorMessage = 'Sai email hoặc mật khẩu. Dùng: ${TestData.userEmail} / ${TestData.userPassword}';
         } else {
@@ -134,9 +148,23 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
 
       if (response.statusCode == 200 || response.statusCode == 201) {
         final data = response.data;
+        final requiresVerify = data is Map &&
+            ((data['requiresEmailVerification'] ?? data['RequiresEmailVerification']) == true);
         final token = data is Map
             ? (data['accessToken'] ?? data['AccessToken'] ?? data['token'])
             : null;
+
+        if (requiresVerify || token == null || token.toString().isEmpty) {
+          if (!mounted) return;
+          setState(() {
+            _awaitingOtp = true;
+            _pendingEmail = _emailController.text.trim();
+            _infoMessage = 'Mã OTP đã gửi tới $_pendingEmail. Nhập mã để hoàn tất đăng ký.';
+            _errorMessage = null;
+          });
+          return;
+        }
+
         if (token != null && token.toString().isNotEmpty) {
           await SecureStorage.saveToken(token.toString());
           await SecureStorage.recordSuccessfulLogin(_emailController.text.trim());
@@ -144,14 +172,6 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
           if (mounted) context.go('/onboarding');
           return;
         }
-
-        _passwordController.clear();
-        _nameController.clear();
-        _usernameController.clear();
-        _tabController.animateTo(0);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Đăng ký thành công! Hãy đăng nhập.')),
-        );
       }
     } catch (e) {
       setState(() {
@@ -161,6 +181,55 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
       setState(() {
         _isLoading = false;
       });
+    }
+  }
+
+  Future<void> _handleVerifyOtp() async {
+    final email = _pendingEmail.trim();
+    final otp = _otpController.text.trim();
+    if (email.isEmpty || otp.length != 6) return;
+
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+      _infoMessage = null;
+    });
+
+    try {
+      await _apiClient.post('auth/verify-email', data: {'email': email, 'otp': otp});
+      if (!mounted) return;
+      setState(() {
+        _awaitingOtp = false;
+        _otpController.clear();
+        _infoMessage = 'Đăng ký thành công! Bạn có thể đăng nhập.';
+      });
+      _tabController.animateTo(0);
+    } on DioException catch (e) {
+      setState(() {
+        _errorMessage = e.response?.data?['message']?.toString() ?? 'Mã OTP không đúng hoặc đã hết hạn.';
+      });
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _handleResendOtp() async {
+    if (_pendingEmail.trim().isEmpty) return;
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+    try {
+      await _apiClient.post('auth/resend-verification', data: {'email': _pendingEmail.trim()});
+      setState(() {
+        _infoMessage = 'Đã gửi lại mã OTP (nếu email hợp lệ).';
+      });
+    } on DioException catch (e) {
+      setState(() {
+        _errorMessage = e.response?.data?['message']?.toString() ?? 'Không gửi được mã OTP.';
+      });
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
@@ -219,7 +288,7 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
               // Card containing inputs
               BrutalCard(
                 child: SizedBox(
-                  height: _tabController.index == 0 ? 320 : 420,
+                  height: _tabController.index == 0 ? 320 : (_awaitingOtp ? 380 : 420),
                   child: TabBarView(
                     controller: _tabController,
                     children: [
@@ -251,7 +320,68 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
                         ],
                       ),
                       // Register flow
-                      Column(
+                      _awaitingOtp
+                          ? Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                Text(
+                                  'Nhập mã OTP gửi tới $_pendingEmail',
+                                  style: BrutalStyles.bodyStyle(size: 14),
+                                ),
+                                const SizedBox(height: 8),
+                                Text(
+                                  'Dev: xem mã OTP trong log backend.',
+                                  style: BrutalStyles.bodyStyle(size: 12, color: BrutalColors.grey),
+                                ),
+                                const SizedBox(height: 16),
+                                TextField(
+                                  controller: _otpController,
+                                  keyboardType: TextInputType.number,
+                                  textAlign: TextAlign.center,
+                                  maxLength: 6,
+                                  inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                                  style: BrutalStyles.titleStyle(size: 28),
+                                  decoration: InputDecoration(
+                                    counterText: '',
+                                    hintText: '000000',
+                                    filled: true,
+                                    fillColor: BrutalColors.cardBg,
+                                    border: OutlineInputBorder(
+                                      borderSide: BorderSide(color: BrutalColors.ink, width: 2),
+                                      borderRadius: BorderRadius.circular(BrutalStyles.borderRadiusValue),
+                                    ),
+                                  ),
+                                  onChanged: (_) => setState(() {}),
+                                ),
+                                const Spacer(),
+                                if (_isLoading)
+                                  Center(child: CircularProgressIndicator(color: BrutalColors.ink))
+                                else ...[
+                                  BrutalButton(
+                                    text: 'XÁC THỰC & HOÀN TẤT',
+                                    onTap: _otpController.text.length == 6 ? _handleVerifyOtp : () {},
+                                    color: BrutalColors.green,
+                                  ),
+                                  const SizedBox(height: 12),
+                                  BrutalButton(
+                                    text: 'GỬI LẠI MÃ OTP',
+                                    onTap: _handleResendOtp,
+                                    color: BrutalColors.purple,
+                                  ),
+                                  const SizedBox(height: 12),
+                                  BrutalButton(
+                                    text: 'QUAY LẠI',
+                                    onTap: () => setState(() {
+                                      _awaitingOtp = false;
+                                      _otpController.clear();
+                                      _infoMessage = null;
+                                    }),
+                                    color: BrutalColors.lightGrey,
+                                  ),
+                                ],
+                              ],
+                            )
+                          : Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
                           BrutalInput(
@@ -288,6 +418,18 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
                   ),
                 ),
               ),
+
+              if (_infoMessage != null) ...[
+                const SizedBox(height: 16),
+                BrutalCard(
+                  color: BrutalColors.successBg,
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  child: Text(
+                    _infoMessage!,
+                    style: BrutalStyles.bodyStyle(size: 13, color: BrutalColors.successText, weight: FontWeight.w700),
+                  ),
+                ),
+              ],
 
               if (_errorMessage != null) ...[
                 const SizedBox(height: 16),

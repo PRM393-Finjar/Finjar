@@ -166,6 +166,9 @@ class BrutalButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final effectiveColor = color ?? BrutalColors.green;
+    final textColor = effectiveColor.computeLuminance() < 0.45
+        ? BrutalColors.cardBg
+        : BrutalColors.ink;
     Widget buttonContent = Row(
       mainAxisAlignment: MainAxisAlignment.center,
       mainAxisSize: isFullWidth ? MainAxisSize.max : MainAxisSize.min,
@@ -176,7 +179,7 @@ class BrutalButton extends StatelessWidget {
         ],
         Text(
           text,
-          style: BrutalStyles.titleStyle(size: 16),
+          style: BrutalStyles.titleStyle(size: 16, color: textColor),
         ),
       ],
     );

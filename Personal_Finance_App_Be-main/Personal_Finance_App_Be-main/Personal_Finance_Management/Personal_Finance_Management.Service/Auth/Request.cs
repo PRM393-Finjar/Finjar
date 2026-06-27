@@ -33,4 +33,19 @@ public class Request
         public required string Password { get; set; }
     }
 
+    public class ResendVerificationRequest
+    {
+        [Required]
+        public required string Email { get; set; }
+    }
+
+    public class VerifyEmailOtpRequest
+    {
+        [Required]
+        public required string Email { get; set; }
+
+        [Required]
+        public required string Otp { get; set; }
+    }
+
 }

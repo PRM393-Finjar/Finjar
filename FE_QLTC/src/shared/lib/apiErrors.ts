@@ -19,6 +19,8 @@ export interface ParsedApiError {
 /** Mã lỗi BE → thông báo tiếng Việt cho người dùng. */
 export const API_ERROR_MESSAGES_VI: Record<string, string> = {
   INVALID_LOGIN_CREDENTIALS: "Email hoặc mật khẩu không đúng. Bạn kiểm tra lại nhé.",
+  INVALID_TOKEN: "Link xác thực không hợp lệ hoặc đã hết hạn. Hãy gửi lại email xác thực.",
+  TOKEN_EXPIRED: "Link xác thực đã hết hạn. Vui lòng gửi lại email xác thực.",
   TRANSACTION_DATE_IN_FUTURE: "Bạn chỉ có thể ghi nhận giao dịch đến thời điểm hiện tại.",
   INVALID_TRANSACTION_AMOUNT: "Vui lòng nhập số tiền lớn hơn 0.",
   CATEGORY_NOT_FOUND: "Danh mục này không còn dùng được. Hãy chọn danh mục khác.",
@@ -58,7 +60,10 @@ export function parseApiError(error: unknown): ParsedApiError {
   }
 
   const body = data ?? {};
-  const code = body.details?.code;
+  const code = body.details?.code
+    ?? (typeof body.details === "object" && body.details !== null && "code" in body.details
+      ? String((body.details as { code?: string }).code)
+      : undefined);
   const rawMsg =
     (typeof body.error === "string" && body.error) ||
     (typeof body.message === "string" && body.message) ||
