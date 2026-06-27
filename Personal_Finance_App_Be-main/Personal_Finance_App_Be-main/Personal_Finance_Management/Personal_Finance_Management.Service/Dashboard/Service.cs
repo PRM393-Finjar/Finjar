@@ -34,10 +34,10 @@ public class Service : IService
             .Where(x => x.UserId == userIdGuid && x.IsActive)
             .Sum(x => (decimal?)x.CurrentBalance) ?? 0;
         var totalIncome = _dbContext.Transactions
-            .Where(x => x.UserId == userIdGuid && x.Type == "Income")
+            .Where(x => x.UserId == userIdGuid && !x.IsDeleted && x.Type == "Income")
             .Sum(x => (decimal?)x.TransactionsAmount) ?? 0;
         var totalExpense = _dbContext.Transactions
-            .Where(x => x.UserId == userIdGuid && x.Type == "Expense")
+            .Where(x => x.UserId == userIdGuid && !x.IsDeleted && x.Type == "Expense")
             .Sum(x => (decimal?)x.TransactionsAmount) ?? 0;
 
         var balanceSummary = new Response.BalanceSummaryResponse
@@ -73,7 +73,7 @@ public class Service : IService
                 j.Balance,
                 // Sum spent per jar safely
                 Spent = _dbContext.Transactions
-                    .Where(t => t.FromJarId == j.Id)
+                    .Where(t => !t.IsDeleted && t.Type == "Expense" && t.FromJarId == j.Id)
                     .Sum(s => (decimal?)s.TransactionsAmount) ?? 0
             })
             .ToList();
@@ -99,7 +99,7 @@ public class Service : IService
                 c.Id,
                 c.Name,
                 TotalSpent = _dbContext.Transactions
-                    .Where(t => t.CategoryId == c.Id && t.Type == "Expense")
+                    .Where(t => !t.IsDeleted && t.CategoryId == c.Id && t.Type == "Expense")
                     .Sum(s => (decimal?)s.TransactionsAmount) ?? 0
             })
             .ToList();
@@ -118,7 +118,7 @@ public class Service : IService
         // ===============================recentTransactions===============================
         // Materialize with only needed columns + Math.Round amount to safe precision
         var recentTransactions = _dbContext.Transactions
-            .Where(x => x.UserId == userIdGuid)
+            .Where(x => x.UserId == userIdGuid && !x.IsDeleted)
             .OrderByDescending(x => x.TransactionDate)
             .Take(50)
             .Select(x => new

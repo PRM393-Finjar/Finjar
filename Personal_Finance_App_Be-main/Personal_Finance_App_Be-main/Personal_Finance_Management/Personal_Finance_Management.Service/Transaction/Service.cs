@@ -33,6 +33,7 @@ public class Service : IService
             throw new Exception("User not found");
         
         var query = _dbContext.Transactions
+            .AsNoTracking()
             .Where(x => x.UserId == userIdGuid && x.IsDeleted == false);
 
         // Filter by financialAccountId
@@ -105,52 +106,69 @@ public class Service : IService
                     break;
 
                 default:
-                    query = query.OrderByDescending(x => x.CreatedAt);
+                    query = query.OrderByDescending(x => x.TransactionDate);
                     break;
             }
         }
         else
         {
             // Default sort
-            query = query.OrderByDescending(x => x.CreatedAt);
+            query = query.OrderByDescending(x => x.TransactionDate);
         }
-        
-        query = query.Skip((request.pageIndex - 1) * request.pageSize).Take(request.pageSize);
-        var selectedQuery = query.Select(x => new Response.GetTransactionResponse
+
+        var pageIndex = request.pageIndex <= 0 ? 1 : request.pageIndex;
+        var pageSize = request.pageSize <= 0 ? 20 : Math.Min(request.pageSize, 100);
+        var totalCount = await query.CountAsync();
+
+        var selectedTransactions = await query
+            .Skip((pageIndex - 1) * pageSize)
+            .Take(pageSize)
+            .Select(x => new Response.GetTransactionResponse
         {
             id = x.Id,
             type = x.Type,
             transactionsAmount = x.TransactionsAmount,
             note = x.Note,
-            date = x.CreatedAt,
+            date = x.TransactionDate,
             financialAccount = new Response.TransactionFinancialAccountResponse
             {
                 id = x.FinancialAccountId,
-                name = x.FinancialAccount.Name,
+                name = x.FinancialAccount == null ? null : x.FinancialAccount.Name,
             },
-            jar = new Response.TransactionJarResponse
-            {
-                id = x.FromJar.Id,
-                name = x.FromJar.Name,
-            },
-            category = new Response.TransactionCategoryResponse
-            {
-                id = x.Category.Id,
-                name = x.Category.Name,
-            }
-        });
-        var totalCount =  query.Count();
+            jar = x.FromJar != null
+                ? new Response.TransactionJarResponse
+                {
+                    id = x.FromJar.Id,
+                    name = x.FromJar.Name,
+                }
+                : x.ToJar != null
+                    ? new Response.TransactionJarResponse
+                    {
+                        id = x.ToJar.Id,
+                        name = x.ToJar.Name,
+                    }
+                    : null,
+            category = x.Category == null
+                ? null
+                : new Response.TransactionCategoryResponse
+                {
+                    id = x.Category.Id,
+                    name = x.Category.Name,
+                }
+        })
+        .ToListAsync();
+
         var selectedPagination = new Response.PaginationResponse
         {
-            page = request.pageIndex,
-            pageSize = request.pageSize,
+            page = pageIndex,
+            pageSize = pageSize,
             totalCount = totalCount,
-            totalPages = (totalCount + request.pageSize - 1) / request.pageSize,
+            totalPages = (totalCount + pageSize - 1) / pageSize,
         };
         
         var result = new Response.GetTransactionsResult
         {
-            data = selectedQuery.ToList(),
+            data = selectedTransactions,
             pagination = selectedPagination,
         };
         
@@ -224,6 +242,11 @@ public class Service : IService
             if (transaction.FromJarId != null  && transaction.ToJarId == null && transaction.FinancialAccountId == null)
             {
                 var jar = _dbContext.Jars.FirstOrDefault(x => x.Id == transaction.FromJarId);
+                if (jar == null)
+                {
+                    throw AppValidationException.NotFound("Jar not found.", "fromJarId", "JAR_NOT_FOUND");
+                }
+
                 if(jar.Balance - transaction.TransactionsAmount >= 0)
                 {
                     jar.Balance = jar.Balance - transaction.TransactionsAmount;
@@ -233,12 +256,36 @@ public class Service : IService
                     throw new Exception("Insufficient funds");
                 }
             }
+            else if (transaction.FromJarId == null && transaction.ToJarId == null && transaction.FinancialAccountId != null)
+            {
+                var financialAccount = _dbContext.FinancialAccounts.FirstOrDefault(x => x.Id == transaction.FinancialAccountId && x.UserId == userIdGuid);
+                if (financialAccount == null)
+                {
+                    throw AppValidationException.NotFound("Financial account not found.", "financialAccountId", "FINANCIAL_ACCOUNT_NOT_FOUND");
+                }
+
+                if (financialAccount.CurrentBalance - transaction.TransactionsAmount >= 0)
+                {
+                    financialAccount.CurrentBalance -= transaction.TransactionsAmount;
+                }
+                else
+                {
+                    throw AppValidationException.BadRequest(
+                        "Insufficient financial account balance.",
+                        "financialAccountId",
+                        "INSUFFICIENT_FINANCIAL_ACCOUNT_BALANCE");
+                }
+            }
         }else if (transaction.Type == "Income")
         {
             if (transaction.ToJarId == null && transaction.FromJarId == null 
                                             && transaction.FinancialAccountId != null)
             {
-                var financialAccount = _dbContext.FinancialAccounts.FirstOrDefault(x => x.Id == transaction.FinancialAccountId);
+                var financialAccount = _dbContext.FinancialAccounts.FirstOrDefault(x => x.Id == transaction.FinancialAccountId && x.UserId == userIdGuid);
+                if (financialAccount == null)
+                {
+                    throw AppValidationException.NotFound("Financial account not found.", "financialAccountId", "FINANCIAL_ACCOUNT_NOT_FOUND");
+                }
                 financialAccount.CurrentBalance = financialAccount.CurrentBalance +  transaction.TransactionsAmount;
             }
         }else if (transaction.Type == "Transfer") {
@@ -247,6 +294,16 @@ public class Service : IService
             {
                 var fromJar = _dbContext.Jars.FirstOrDefault(x => x.Id == transaction.FromJarId);
                 var toJar = _dbContext.Jars.FirstOrDefault(x => x.Id == transaction.ToJarId);
+                if (fromJar == null)
+                {
+                    throw AppValidationException.NotFound("Source jar not found.", "fromJarId", "FROM_JAR_NOT_FOUND");
+                }
+
+                if (toJar == null)
+                {
+                    throw AppValidationException.NotFound("Destination jar not found.", "toJarId", "TO_JAR_NOT_FOUND");
+                }
+
                 if (fromJar.Balance - transaction.TransactionsAmount >= 0)
                 {
                     fromJar.Balance = fromJar.Balance - transaction.TransactionsAmount;
@@ -264,6 +321,16 @@ public class Service : IService
             {
                 var toJar = _dbContext.Jars.FirstOrDefault(x => x.Id == transaction.ToJarId);
                 var finnacialAccount = _dbContext.FinancialAccounts.FirstOrDefault(x => x.Id == transaction.FinancialAccountId);
+                if (toJar == null)
+                {
+                    throw AppValidationException.NotFound("Destination jar not found.", "toJarId", "TO_JAR_NOT_FOUND");
+                }
+
+                if (finnacialAccount == null)
+                {
+                    throw AppValidationException.NotFound("Financial account not found.", "financialAccountId", "FINANCIAL_ACCOUNT_NOT_FOUND");
+                }
+
                 if (finnacialAccount.CurrentBalance - transaction.TransactionsAmount >= 0)
                 {
                     finnacialAccount.CurrentBalance = finnacialAccount.CurrentBalance - transaction.TransactionsAmount;
@@ -281,6 +348,16 @@ public class Service : IService
             {
                 var fromJar = _dbContext.Jars.FirstOrDefault(x => x.Id == transaction.FromJarId);
                 var finnacialAccount = _dbContext.FinancialAccounts.FirstOrDefault(x => x.Id == transaction.FinancialAccountId);
+                if (fromJar == null)
+                {
+                    throw AppValidationException.NotFound("Source jar not found.", "fromJarId", "FROM_JAR_NOT_FOUND");
+                }
+
+                if (finnacialAccount == null)
+                {
+                    throw AppValidationException.NotFound("Financial account not found.", "financialAccountId", "FINANCIAL_ACCOUNT_NOT_FOUND");
+                }
+
                 if (fromJar.Balance - transaction.TransactionsAmount >= 0)
                 {
                     fromJar.Balance = fromJar.Balance - transaction.TransactionsAmount;
@@ -348,11 +425,11 @@ public class Service : IService
         // transaction.FromJarId = request.fromJarId ?? transaction.FromJarId;
         // transaction.ToJarId = request.toJarId ?? transaction.ToJarId;
         // transaction.TransactionDate = request.date;
-        var newTransactionsAmount = request.transactionsAmount;
         var newCategoryId = request.categoryId;
         var newTransactionNote = request.note;
         if( request.transactionsAmount != null )
         {
+            var newAmount = request.transactionsAmount.Value;
             if (transaction.Type == "Expense")
             {
                 if (transaction.FromJarId != null && transaction.ToJarId == null && transaction.FinancialAccountId == null)
@@ -360,15 +437,35 @@ public class Service : IService
                     var fromJar = _dbContext.Jars.FirstOrDefault(x => x.Id == transaction.FromJarId);
                     if(fromJar == null) throw new Exception("Jar not found");
                     fromJar.Balance = fromJar.Balance + transaction.TransactionsAmount;
-                    if (fromJar.Balance - newTransactionsAmount >= 0)
+                    if (fromJar.Balance - newAmount >= 0)
                     {
-                        transaction.TransactionsAmount = (decimal)newTransactionsAmount;
+                        transaction.TransactionsAmount = newAmount;
                         fromJar.Balance = fromJar.Balance - transaction.TransactionsAmount;
                     }
                     else
                     {
                         throw new Exception("Insufficient funds");
                     }
+                }
+                else if (transaction.FromJarId == null && transaction.ToJarId == null && transaction.FinancialAccountId != null)
+                {
+                    var financialAccount = _dbContext.FinancialAccounts.FirstOrDefault(x => x.Id == transaction.FinancialAccountId && x.UserId == userIdGuid);
+                    if (financialAccount == null)
+                    {
+                        throw AppValidationException.NotFound("Financial account not found.", "financialAccountId", "FINANCIAL_ACCOUNT_NOT_FOUND");
+                    }
+
+                    var balanceAfterUpdate = financialAccount.CurrentBalance + transaction.TransactionsAmount - newAmount;
+                    if (balanceAfterUpdate < 0)
+                    {
+                        throw AppValidationException.BadRequest(
+                            "Insufficient financial account balance.",
+                            "financialAccountId",
+                            "INSUFFICIENT_FINANCIAL_ACCOUNT_BALANCE");
+                    }
+
+                    transaction.TransactionsAmount = newAmount;
+                    financialAccount.CurrentBalance = balanceAfterUpdate;
                 }
                 
             }
@@ -385,7 +482,7 @@ public class Service : IService
                         throw new Exception("The Income has been used!. The Change will terminated the existed money flow logic");
                     }
                     financialAccount.CurrentBalance = financialAccount.CurrentBalance -  transaction.TransactionsAmount;
-                    transaction.TransactionsAmount = (decimal)newTransactionsAmount;
+                    transaction.TransactionsAmount = newAmount;
                     financialAccount.CurrentBalance = financialAccount.CurrentBalance + transaction.TransactionsAmount;
                 }
             }
@@ -450,7 +547,98 @@ public class Service : IService
                 "LINKED_TRANSACTION_DELETE_NOT_ALLOWED");
         }
 
+        if (transaction.Type == "Expense")
+        {
+            if (transaction.FromJarId != null && transaction.ToJarId == null && transaction.FinancialAccountId == null)
+            {
+                var fromJar = await _dbContext.Jars.FirstOrDefaultAsync(x => x.Id == transaction.FromJarId && x.UserId == userIdGuid);
+                if (fromJar == null)
+                {
+                    throw AppValidationException.NotFound("Jar not found.", "fromJarId", "JAR_NOT_FOUND");
+                }
+                fromJar.Balance += transaction.TransactionsAmount;
+            }
+            else if (transaction.FromJarId == null && transaction.ToJarId == null && transaction.FinancialAccountId != null)
+            {
+                var financialAccount = await _dbContext.FinancialAccounts.FirstOrDefaultAsync(x => x.Id == transaction.FinancialAccountId && x.UserId == userIdGuid);
+                if (financialAccount == null)
+                {
+                    throw AppValidationException.NotFound("Financial account not found.", "financialAccountId", "FINANCIAL_ACCOUNT_NOT_FOUND");
+                }
+                financialAccount.CurrentBalance += transaction.TransactionsAmount;
+            }
+        }
+        else if (transaction.Type == "Income")
+        {
+            if (transaction.FromJarId == null && transaction.ToJarId == null && transaction.FinancialAccountId != null)
+            {
+                var financialAccount = await _dbContext.FinancialAccounts.FirstOrDefaultAsync(x => x.Id == transaction.FinancialAccountId && x.UserId == userIdGuid);
+                if (financialAccount == null)
+                {
+                    throw AppValidationException.NotFound("Financial account not found.", "financialAccountId", "FINANCIAL_ACCOUNT_NOT_FOUND");
+                }
+                if (financialAccount.CurrentBalance - transaction.TransactionsAmount < 0)
+                {
+                    throw AppValidationException.BadRequest(
+                        "Income cannot be deleted because its funds are already used.",
+                        "financialAccountId",
+                        "INCOME_FUNDS_ALREADY_USED");
+                }
+                financialAccount.CurrentBalance -= transaction.TransactionsAmount;
+            }
+        }
+        else if (transaction.Type == "Transfer")
+        {
+            if (transaction.FromJarId != null && transaction.ToJarId != null && transaction.FinancialAccountId == null)
+            {
+                var fromJar = await _dbContext.Jars.FirstOrDefaultAsync(x => x.Id == transaction.FromJarId && x.UserId == userIdGuid);
+                var toJar = await _dbContext.Jars.FirstOrDefaultAsync(x => x.Id == transaction.ToJarId && x.UserId == userIdGuid);
+                if (fromJar == null || toJar == null)
+                {
+                    throw AppValidationException.NotFound("Jar not found.", "jarId", "JAR_NOT_FOUND");
+                }
+                if (toJar.Balance - transaction.TransactionsAmount < 0)
+                {
+                    throw AppValidationException.BadRequest("Transfer cannot be reversed because destination jar funds are already used.", "toJarId", "TRANSFER_FUNDS_ALREADY_USED");
+                }
+                fromJar.Balance += transaction.TransactionsAmount;
+                toJar.Balance -= transaction.TransactionsAmount;
+            }
+            else if (transaction.FromJarId == null && transaction.ToJarId != null && transaction.FinancialAccountId != null)
+            {
+                var toJar = await _dbContext.Jars.FirstOrDefaultAsync(x => x.Id == transaction.ToJarId && x.UserId == userIdGuid);
+                var financialAccount = await _dbContext.FinancialAccounts.FirstOrDefaultAsync(x => x.Id == transaction.FinancialAccountId && x.UserId == userIdGuid);
+                if (toJar == null || financialAccount == null)
+                {
+                    throw AppValidationException.NotFound("Transfer target not found.", "id", "TRANSFER_TARGET_NOT_FOUND");
+                }
+                if (toJar.Balance - transaction.TransactionsAmount < 0)
+                {
+                    throw AppValidationException.BadRequest("Transfer cannot be reversed because destination jar funds are already used.", "toJarId", "TRANSFER_FUNDS_ALREADY_USED");
+                }
+                financialAccount.CurrentBalance += transaction.TransactionsAmount;
+                toJar.Balance -= transaction.TransactionsAmount;
+            }
+            else if (transaction.FromJarId != null && transaction.ToJarId == null && transaction.FinancialAccountId != null)
+            {
+                var fromJar = await _dbContext.Jars.FirstOrDefaultAsync(x => x.Id == transaction.FromJarId && x.UserId == userIdGuid);
+                var financialAccount = await _dbContext.FinancialAccounts.FirstOrDefaultAsync(x => x.Id == transaction.FinancialAccountId && x.UserId == userIdGuid);
+                if (fromJar == null || financialAccount == null)
+                {
+                    throw AppValidationException.NotFound("Transfer target not found.", "id", "TRANSFER_TARGET_NOT_FOUND");
+                }
+                if (financialAccount.CurrentBalance - transaction.TransactionsAmount < 0)
+                {
+                    throw AppValidationException.BadRequest("Transfer cannot be reversed because destination account funds are already used.", "financialAccountId", "TRANSFER_FUNDS_ALREADY_USED");
+                }
+                fromJar.Balance += transaction.TransactionsAmount;
+                financialAccount.CurrentBalance -= transaction.TransactionsAmount;
+            }
+        }
+
         transaction.IsDeleted = true;
+        transaction.DeletedAt = DateTimeOffset.UtcNow;
+        transaction.UpdatedAt = DateTimeOffset.UtcNow;
         await _dbContext.SaveChangesAsync();
 
         // Evaluate goals for affected jars (deletion might refund money if it was an expense)
@@ -533,7 +721,7 @@ public class Service : IService
                     UserId = item.UserId,
                     Type = "SpendingAlert",
                     Title = "Thông báo vượt ngưỡng!",
-                    Body = $"Xin thông báo! bạn đã chạm ngưỡng {item.LimitAmount}đ giới hạn chi tiêu ở hũ {item.Jar.Name}",
+                    Body = $"Xin thông báo! bạn đã chạm ngưỡng {item.LimitAmount}đ giới hạn chi tiêu ở hũ {jar.Name}",
                     IsRead = false,
                     CreatedAt = DateTimeOffset.UtcNow,
                     MetadataJson = $"{{\"limitId\": \"{item.Id}\", \"jarId\": \"{jar.Id}\"}}"
@@ -550,7 +738,7 @@ public class Service : IService
                     UserId = item.UserId,
                     Type = "SpendingAlert",
                     Title = "Thông báo vượt ngưỡng!",
-                    Body = $"Xin thông báo! bạn đã chạm ngưỡng thông báo {item.AlertAtPercentage}% giới hạn chi tiêu ở hũ {item.Jar.Name}",
+                    Body = $"Xin thông báo! bạn đã chạm ngưỡng thông báo {item.AlertAtPercentage}% giới hạn chi tiêu ở hũ {jar.Name}",
                     IsRead = false,
                     CreatedAt = DateTimeOffset.UtcNow,
                     MetadataJson = $"{{\"limitId\": \"{item.Id}\", \"jarId\": \"{jar.Id}\"}}"

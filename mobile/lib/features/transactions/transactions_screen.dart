@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:finjar_mobile/core/theme/brutal_theme.dart';
 import 'package:finjar_mobile/core/network/api_client.dart';
-import 'package:intl/intl.dart';
 import 'package:finjar_mobile/core/theme/app_settings.dart';
 import 'package:finjar_mobile/core/theme/currency_input.dart';
 
@@ -27,12 +26,16 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
   void initState() {
     super.initState();
     AppSettings().categoriesRefreshNotifier.addListener(_fetchCategories);
+    AppSettings().transactionsRefreshNotifier.addListener(_fetchTransactions);
     _loadInitialData();
   }
 
   @override
   void dispose() {
     AppSettings().categoriesRefreshNotifier.removeListener(_fetchCategories);
+    AppSettings()
+        .transactionsRefreshNotifier
+        .removeListener(_fetchTransactions);
     super.dispose();
   }
 
@@ -63,8 +66,16 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
   Future<void> _fetchTransactions() async {
     final response = await _apiClient.get('transactions');
     if (response.statusCode == 200) {
+      final data = response.data;
+      List<dynamic> parsed = [];
+      if (data is Map) {
+        parsed = data['data'] ?? data['Data'] ?? [];
+      } else if (data is List) {
+        parsed = data;
+      }
+      if (!mounted) return;
       setState(() {
-        _transactions = response.data['data'] ?? [];
+        _transactions = parsed;
       });
     }
   }
@@ -75,8 +86,10 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
       final data = response.data;
       List<dynamic> combined = [];
       if (data is Map) {
-        final defaultCats = data['defaultCategories'] ?? data['DefaultCategories'] ?? [];
-        final customCats = data['customCategories'] ?? data['CustomCategories'] ?? [];
+        final defaultCats =
+            data['defaultCategories'] ?? data['DefaultCategories'] ?? [];
+        final customCats =
+            data['customCategories'] ?? data['CustomCategories'] ?? [];
         combined.addAll(defaultCats);
         combined.addAll(customCats);
       } else if (data is List) {
@@ -108,10 +121,13 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
     try {
       await _apiClient.delete('transactions/$id');
       await _fetchTransactions();
+      AppSettings().triggerDashboardRefresh();
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Xóa giao dịch thành công!')),
       );
     } catch (e) {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Không thể xóa giao dịch. Hãy thử lại.')),
       );
@@ -122,8 +138,10 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
     final titleController = TextEditingController();
     final amountController = TextEditingController();
     String type = 'expense';
-    String? selectedCategoryId = _categories.isNotEmpty ? _categories.first['id'] : null;
-    String? selectedAccountId = _accounts.isNotEmpty ? _accounts.first['id'] : null;
+    String? selectedCategoryId =
+        _categories.isNotEmpty ? _idOf(_categories.first['id']) : null;
+    String? selectedAccountId =
+        _accounts.isNotEmpty ? _idOf(_accounts.first['id']) : null;
 
     showModalBottomSheet(
       context: context,
@@ -147,14 +165,17 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    Text('Thêm giao dịch mới 📝', style: BrutalStyles.titleStyle(size: 20)),
+                    Text('Thêm giao dịch mới 📝',
+                        style: BrutalStyles.titleStyle(size: 20)),
                     const SizedBox(height: 16),
                     Row(
                       children: [
                         Expanded(
                           child: BrutalButton(
                             text: 'Chi tiêu',
-                            color: type == 'expense' ? BrutalColors.destructive : BrutalColors.cardBg,
+                            color: type == 'expense'
+                                ? BrutalColors.destructive
+                                : BrutalColors.cardBg,
                             onTap: () {
                               setModalState(() {
                                 type = 'expense';
@@ -166,7 +187,9 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                         Expanded(
                           child: BrutalButton(
                             text: 'Thu nhập',
-                            color: type == 'income' ? BrutalColors.green : BrutalColors.cardBg,
+                            color: type == 'income'
+                                ? BrutalColors.green
+                                : BrutalColors.cardBg,
                             onTap: () {
                               setModalState(() {
                                 type = 'income';
@@ -189,7 +212,9 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                       controller: amountController,
                     ),
                     const SizedBox(height: 12),
-                    Text('Danh mục', style: BrutalStyles.bodyStyle(size: 14, weight: FontWeight.w700)),
+                    Text('Danh mục',
+                        style: BrutalStyles.bodyStyle(
+                            size: 14, weight: FontWeight.w700)),
                     const SizedBox(height: 6),
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 12),
@@ -203,9 +228,10 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                           value: selectedCategoryId,
                           isExpanded: true,
                           style: BrutalStyles.bodyStyle(size: 14),
-                          items: _categories.map<DropdownMenuItem<String>>((cat) {
+                          items:
+                              _categories.map<DropdownMenuItem<String>>((cat) {
                             return DropdownMenuItem<String>(
-                              value: cat['id'],
+                              value: _idOf(cat['id']),
                               child: Text(cat['name'] ?? 'Danh mục'),
                             );
                           }).toList(),
@@ -218,7 +244,9 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                       ),
                     ),
                     const SizedBox(height: 12),
-                    Text('Tài khoản', style: BrutalStyles.bodyStyle(size: 14, weight: FontWeight.w700)),
+                    Text('Tài khoản',
+                        style: BrutalStyles.bodyStyle(
+                            size: 14, weight: FontWeight.w700)),
                     const SizedBox(height: 6),
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 12),
@@ -234,7 +262,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                           style: BrutalStyles.bodyStyle(size: 14),
                           items: _accounts.map<DropdownMenuItem<String>>((acc) {
                             return DropdownMenuItem<String>(
-                              value: acc['id'],
+                              value: _idOf(acc['id']),
                               child: Text(acc['name'] ?? 'Tài khoản'),
                             );
                           }).toList(),
@@ -258,19 +286,23 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                           try {
                             await _apiClient.post('transactions', data: {
                               'financialAccountId': selectedAccountId,
-                              'type': type,
+                              'type': type == 'income' ? 'Income' : 'Expense',
                               'transactionsAmount': amount,
                               'categoryId': selectedCategoryId,
                               'note': title,
                               'date': DateTime.now().toIso8601String(),
                             });
                             await _fetchTransactions();
+                            AppSettings().triggerDashboardRefresh();
+                            if (context.mounted) Navigator.pop(context);
                           } catch (e) {
+                            if (!context.mounted) return;
                             ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text('Không thể tạo giao dịch. Hãy thử lại.')),
+                              const SnackBar(
+                                  content: Text(
+                                      'Không thể tạo giao dịch. Hãy thử lại.')),
                             );
                           }
-                          if (mounted) Navigator.pop(context);
                         }
                       },
                     ),
@@ -288,11 +320,48 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
     return AppSettings().formatCurrency(amount);
   }
 
+  String _idOf(dynamic value) => value?.toString() ?? '';
+
+  String _transactionType(dynamic tx) {
+    return (tx['type'] ?? '').toString().toLowerCase();
+  }
+
+  bool _isIncomeTransaction(dynamic tx) => _transactionType(tx) == 'income';
+
+  double _transactionAmount(dynamic tx) {
+    final value = tx['transactionsAmount'] ?? tx['amount'] ?? 0;
+    if (value is num) return value.toDouble().abs();
+    return double.tryParse(value.toString())?.abs() ?? 0;
+  }
+
+  String _transactionTitle(dynamic tx) {
+    return (tx['note'] ?? tx['title'] ?? tx['description'] ?? 'Giao dịch')
+        .toString();
+  }
+
+  String _transactionCategoryName(dynamic tx) {
+    final category = tx['category'];
+    if (category is Map) {
+      return (category['name'] ?? 'Khác').toString();
+    }
+    return (tx['categoryName'] ?? category ?? 'Khác').toString();
+  }
+
+  String _transactionCategoryId(dynamic tx) {
+    final category = tx['category'];
+    if (category is Map) {
+      return _idOf(category['id']);
+    }
+    return _idOf(tx['categoryId'] ?? category);
+  }
+
   @override
   Widget build(BuildContext context) {
     final filteredTransactions = _transactions.where((tx) {
-      final matchesType = _selectedType == 'all' || tx['type'] == _selectedType;
-      final matchesCategory = _selectedCategory == null || tx['category'] == _selectedCategory;
+      final matchesType =
+          _selectedType == 'all' || _transactionType(tx) == _selectedType;
+      final matchesCategory = _selectedCategory == null ||
+          _transactionCategoryId(tx) == _selectedCategory;
       return matchesType && matchesCategory;
     }).toList();
 
@@ -304,8 +373,10 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
           appBar: AppBar(
             backgroundColor: BrutalColors.cardBg,
             elevation: 0,
-            title: Text('Sổ Giao Dịch 📖', style: BrutalStyles.titleStyle(size: 22)),
-            shape: Border(bottom: BorderSide(color: BrutalColors.ink, width: 3)),
+            title: Text('Sổ Giao Dịch 📖',
+                style: BrutalStyles.titleStyle(size: 22)),
+            shape:
+                Border(bottom: BorderSide(color: BrutalColors.ink, width: 3)),
           ),
           body: Column(
             children: [
@@ -323,11 +394,13 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                 ),
               ),
               Divider(height: 1, thickness: 2, color: BrutalColors.ink),
-    
+
               // Main list
               Expanded(
                 child: _isLoading
-                    ? Center(child: CircularProgressIndicator(color: BrutalColors.ink))
+                    ? Center(
+                        child:
+                            CircularProgressIndicator(color: BrutalColors.ink))
                     : filteredTransactions.isEmpty
                         ? Center(
                             child: SingleChildScrollView(
@@ -336,14 +409,20 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                                 color: BrutalColors.cardBg,
                                 child: Column(
                                   mainAxisSize: MainAxisSize.min,
-                                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                                  crossAxisAlignment:
+                                      CrossAxisAlignment.stretch,
                                   children: [
-                                    const Text('📖', style: TextStyle(fontSize: 48), textAlign: TextAlign.center),
+                                    const Text('📖',
+                                        style: TextStyle(fontSize: 48),
+                                        textAlign: TextAlign.center),
                                     const SizedBox(height: 16),
                                     Text(
                                       'Không tìm thấy giao dịch nào. Hãy bấm nút + ở góc để thêm giao dịch mới!',
                                       textAlign: TextAlign.center,
-                                      style: BrutalStyles.bodyStyle(size: 14, color: BrutalColors.grey, weight: FontWeight.w700),
+                                      style: BrutalStyles.bodyStyle(
+                                          size: 14,
+                                          color: BrutalColors.grey,
+                                          weight: FontWeight.w700),
                                     ),
                                   ],
                                 ),
@@ -355,11 +434,14 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                             padding: const EdgeInsets.all(16),
                             itemBuilder: (context, index) {
                               final tx = filteredTransactions[index];
-                              final isIncome = tx['type'] == 'income';
-                              final amount = (tx['transactionsAmount'] ?? tx['amount'] ?? 0.0).toDouble();
-    
+                              final isIncome = _isIncomeTransaction(tx);
+                              final amount = _transactionAmount(tx);
+                              final transactionId = _idOf(tx['id']);
+
                               return Dismissible(
-                                key: Key(tx['id'] ?? index.toString()),
+                                key: Key(transactionId.isNotEmpty
+                                    ? transactionId
+                                    : index.toString()),
                                 direction: DismissDirection.endToStart,
                                 background: Container(
                                   alignment: Alignment.centerRight,
@@ -369,9 +451,11 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                                     borderRadius: BorderRadius.circular(16),
                                     border: BrutalStyles.border,
                                   ),
-                                  child: const Icon(Icons.delete_forever, color: Colors.white, size: 28),
+                                  child: const Icon(Icons.delete_forever,
+                                      color: Colors.white, size: 28),
                                 ),
-                                onDismissed: (direction) => _deleteTransaction(tx['id']),
+                                onDismissed: (direction) =>
+                                    _deleteTransaction(transactionId),
                                 child: Padding(
                                   padding: const EdgeInsets.only(bottom: 12),
                                   child: BrutalCard(
@@ -379,7 +463,9 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                                     child: Row(
                                       children: [
                                         CircleAvatar(
-                                          backgroundColor: isIncome ? BrutalColors.green : BrutalColors.purple,
+                                          backgroundColor: isIncome
+                                              ? BrutalColors.green
+                                              : BrutalColors.purple,
                                           radius: 20,
                                           child: Icon(
                                             isIncome ? Icons.add : Icons.remove,
@@ -390,18 +476,20 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                                         const SizedBox(width: 14),
                                         Expanded(
                                           child: Column(
-                                            crossAxisAlignment: CrossAxisAlignment.start,
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
                                             children: [
                                               Text(
-                                                tx['note'] ?? tx['title'] ?? 'Chi tiêu',
-                                                style: BrutalStyles.bodyStyle(size: 15, weight: FontWeight.w800),
+                                                _transactionTitle(tx),
+                                                style: BrutalStyles.bodyStyle(
+                                                    size: 15,
+                                                    weight: FontWeight.w800),
                                               ),
                                               const SizedBox(height: 2),
                                               Text(
-                                                tx['category'] is Map
-                                                    ? (tx['category']['name'] ?? 'Khác')
-                                                    : (tx['category'] ?? 'Khác'),
-                                                style: BrutalStyles.labelStyle(size: 12),
+                                                _transactionCategoryName(tx),
+                                                style: BrutalStyles.labelStyle(
+                                                    size: 12),
                                               ),
                                             ],
                                           ),
@@ -411,7 +499,9 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                                           style: BrutalStyles.bodyStyle(
                                             size: 15,
                                             weight: FontWeight.w800,
-                                            color: isIncome ? BrutalColors.successText : BrutalColors.destructive,
+                                            color: isIncome
+                                                ? BrutalColors.successText
+                                                : BrutalColors.destructive,
                                           ),
                                         ),
                                       ],

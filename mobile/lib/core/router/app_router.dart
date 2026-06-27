@@ -15,12 +15,15 @@ import 'package:finjar_mobile/features/goals/goals_screen.dart';
 import 'package:finjar_mobile/features/notifications/notifications_screen.dart';
 import 'package:finjar_mobile/features/reminders/reminders_screen.dart';
 
-final GlobalKey<NavigatorState> _rootNavigatorKey = GlobalKey<NavigatorState>(debugLabel: 'root');
-final GlobalKey<NavigatorState> _shellNavigatorKey = GlobalKey<NavigatorState>(debugLabel: 'shell');
+final GlobalKey<NavigatorState> _rootNavigatorKey =
+    GlobalKey<NavigatorState>(debugLabel: 'root');
+final GlobalKey<NavigatorState> _shellNavigatorKey =
+    GlobalKey<NavigatorState>(debugLabel: 'shell');
 
 /// Key used by AppShell to trigger a data refresh on DashboardScreen
 /// whenever the user switches back to the Dashboard tab.
-final GlobalKey<DashboardScreenState> dashboardKey = GlobalKey<DashboardScreenState>();
+final GlobalKey<DashboardScreenState> dashboardKey =
+    GlobalKey<DashboardScreenState>();
 
 final GoRouter appRouter = GoRouter(
   navigatorKey: _rootNavigatorKey,
@@ -33,7 +36,9 @@ final GoRouter appRouter = GoRouter(
     final isOnboarding = location == '/onboarding';
     final isVerifyEmail = location.startsWith('/verify-email');
 
-    if (token != null && token.isNotEmpty && await SecureStorage.isSessionExpired()) {
+    if (token != null &&
+        token.isNotEmpty &&
+        await SecureStorage.isSessionExpired()) {
       await SecureStorage.clearSession();
       return isAuth || isVerifyEmail ? null : '/auth';
     }
@@ -130,7 +135,8 @@ final GoRouter appRouter = GoRouter(
 class AppShell extends StatefulWidget {
   final String location;
   final Widget child; // unused visually but required by ShellRoute
-  const AppShell({Key? key, required this.location, required this.child}) : super(key: key);
+  const AppShell({Key? key, required this.location, required this.child})
+      : super(key: key);
 
   @override
   State<AppShell> createState() => _AppShellState();
@@ -160,6 +166,8 @@ class _AppShellState extends State<AppShell> {
       // Refresh Dashboard whenever navigating back to it
       if (newIndex == 0) {
         dashboardKey.currentState?.refresh();
+      } else if (newIndex == 1) {
+        AppSettings().triggerTransactionsRefresh();
       }
       setState(() {
         _currentIndex = newIndex;
@@ -179,6 +187,8 @@ class _AppShellState extends State<AppShell> {
     // Refresh Dashboard data whenever user navigates back to it
     if (index == 0) {
       dashboardKey.currentState?.refresh();
+    } else if (index == 1) {
+      AppSettings().triggerTransactionsRefresh();
     }
     GoRouter.of(context).go(_paths[index]);
   }
@@ -220,8 +230,10 @@ class _AppShellState extends State<AppShell> {
               backgroundColor: BrutalColors.cardBg,
               selectedItemColor: BrutalColors.ink,
               unselectedItemColor: BrutalColors.grey,
-              selectedLabelStyle: const TextStyle(fontWeight: FontWeight.w800, fontSize: 12),
-              unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 11),
+              selectedLabelStyle:
+                  const TextStyle(fontWeight: FontWeight.w800, fontSize: 12),
+              unselectedLabelStyle:
+                  const TextStyle(fontWeight: FontWeight.w600, fontSize: 11),
               type: BottomNavigationBarType.fixed,
               items: const [
                 BottomNavigationBarItem(

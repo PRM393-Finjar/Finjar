@@ -24,30 +24,70 @@ class MockApiHandler {
     {'id': 1, 'name': 'Tiền mặt', 'balance': 2500000, 'accountType': 'Manual'},
   ];
   final List<Map<String, dynamic>> _jars = [
-    {'id': 1, 'name': 'Sinh hoạt', 'balance': 1200000, 'icon': '🏠', 'color': '#FF6B6B'},
-    {'id': 2, 'name': 'Ăn uống', 'balance': 800000, 'icon': '🍜', 'color': '#4ECDC4'},
+    {
+      'id': 1,
+      'name': 'Sinh hoạt',
+      'balance': 1200000,
+      'icon': '🏠',
+      'color': '#FF6B6B'
+    },
+    {
+      'id': 2,
+      'name': 'Ăn uống',
+      'balance': 800000,
+      'icon': '🍜',
+      'color': '#4ECDC4'
+    },
   ];
   final List<Map<String, dynamic>> _categories = [
-    {'id': 1, 'name': 'Ăn uống', 'icon': '🍜', 'color': '#4ECDC4', 'isActive': true},
-    {'id': 2, 'name': 'Di chuyển', 'icon': '🚌', 'color': '#45B7D1', 'isActive': true},
+    {
+      'id': 1,
+      'name': 'Ăn uống',
+      'icon': '🍜',
+      'color': '#4ECDC4',
+      'isActive': true
+    },
+    {
+      'id': 2,
+      'name': 'Di chuyển',
+      'icon': '🚌',
+      'color': '#45B7D1',
+      'isActive': true
+    },
   ];
   final List<Map<String, dynamic>> _goals = [
-    {'id': 1, 'name': 'Tiết kiệm mua laptop', 'targetAmount': 20000000, 'currentAmount': 5000000},
+    {
+      'id': 1,
+      'name': 'Tiết kiệm mua laptop',
+      'targetAmount': 20000000,
+      'currentAmount': 5000000
+    },
   ];
   final List<Map<String, dynamic>> _limits = [
-    {'id': 1, 'name': 'Ăn uống', 'limitAmount': 2000000, 'currentSpent': 450000},
+    {
+      'id': 1,
+      'name': 'Ăn uống',
+      'limitAmount': 2000000,
+      'currentSpent': 450000
+    },
   ];
   final List<Map<String, dynamic>> _reminders = [
     {
       'id': 1,
       'title': 'Thanh toán điện',
       'amount': 350000,
-      'reminderDate': DateTime.now().add(const Duration(days: 3)).toIso8601String(),
+      'reminderDate':
+          DateTime.now().add(const Duration(days: 3)).toIso8601String(),
       'isCompleted': false,
     },
   ];
   final List<Map<String, dynamic>> _notifications = [
-    {'id': 1, 'title': 'Chào mừng Finjar', 'message': 'Bạn đang dùng chế độ demo.', 'isRead': false},
+    {
+      'id': 1,
+      'title': 'Chào mừng Finjar',
+      'message': 'Bạn đang dùng chế độ demo.',
+      'isRead': false
+    },
   ];
 
   Future<Response> handle({
@@ -72,11 +112,32 @@ class MockApiHandler {
       return _ok({'message': 'onboarding complete'});
     }
     if (method == 'GET' && normalized == 'dashboard') {
+      final totalIncome = _transactions
+          .where((tx) => tx['type'].toString().toLowerCase() == 'income')
+          .fold<num>(
+              0,
+              (sum, tx) =>
+                  sum +
+                  ((tx['transactionsAmount'] ?? tx['amount'] ?? 0) as num));
+      final totalExpense = _transactions
+          .where((tx) => tx['type'].toString().toLowerCase() == 'expense')
+          .fold<num>(
+              0,
+              (sum, tx) =>
+                  sum +
+                  ((tx['transactionsAmount'] ?? tx['amount'] ?? 0) as num));
+      final totalBalance = _accounts.fold<num>(
+        0,
+        (sum, account) =>
+            sum +
+            ((account['currentBalance'] ?? account['balance'] ?? 0) as num),
+      );
+
       return _ok({
         'balanceSummary': {
-          'totalBalance': 2500000,
-          'totalIncome': 15000000,
-          'totalExpense': 45000,
+          'totalBalance': totalBalance,
+          'totalIncome': totalIncome,
+          'totalExpense': totalExpense,
         },
         'recentTransactions': _transactions.take(5).toList(),
       });
@@ -103,12 +164,30 @@ class MockApiHandler {
     if (method == 'POST' && normalized == 'transactions') {
       final item = Map<String, dynamic>.from(data as Map);
       item['id'] = _nextId++;
+      final categoryId = item['categoryId']?.toString();
+      final matchedCategory =
+          _categories.cast<Map<String, dynamic>?>().firstWhere(
+                (category) => category?['id']?.toString() == categoryId,
+                orElse: () => null,
+              );
+      if (matchedCategory != null) {
+        item['category'] = {
+          'id': matchedCategory['id'],
+          'name': matchedCategory['name'],
+        };
+        item['categoryName'] = matchedCategory['name'];
+      }
+      _applyTransactionToMockAccount(item, isReversal: false);
       _transactions.insert(0, item);
       return _ok(item, statusCode: 201);
     }
     if (method == 'DELETE' && normalized.startsWith('transactions/')) {
-      final id = int.parse(normalized.split('/').last);
-      _transactions.removeWhere((e) => e['id'] == id);
+      final id = normalized.split('/').last;
+      final index = _transactions.indexWhere((e) => e['id']?.toString() == id);
+      if (index >= 0) {
+        _applyTransactionToMockAccount(_transactions[index], isReversal: true);
+        _transactions.removeAt(index);
+      }
       return _ok({'message': 'deleted'});
     }
     if (method == 'GET' && normalized == 'financial-accounts') {
@@ -223,5 +302,30 @@ class MockApiHandler {
       statusCode: statusCode,
       data: data,
     );
+  }
+
+  void _applyTransactionToMockAccount(Map<String, dynamic> transaction,
+      {required bool isReversal}) {
+    final accountId = transaction['financialAccountId']?.toString();
+    if (accountId == null || accountId.isEmpty) return;
+
+    final account = _accounts.cast<Map<String, dynamic>?>().firstWhere(
+          (item) => item?['id']?.toString() == accountId,
+          orElse: () => null,
+        );
+    if (account == null) return;
+
+    final rawAmount =
+        transaction['transactionsAmount'] ?? transaction['amount'] ?? 0;
+    final amount =
+        rawAmount is num ? rawAmount : num.tryParse(rawAmount.toString()) ?? 0;
+    final currentBalance =
+        (account['currentBalance'] ?? account['balance'] ?? 0) as num;
+    final isIncome = transaction['type'].toString().toLowerCase() == 'income';
+    final delta = isIncome ? amount : -amount;
+    final nextBalance = currentBalance + (isReversal ? -delta : delta);
+
+    account['balance'] = nextBalance;
+    account['currentBalance'] = nextBalance;
   }
 }
