@@ -113,19 +113,11 @@ class MockApiHandler {
     }
     if (method == 'GET' && normalized == 'dashboard') {
       final totalIncome = _transactions
-          .where((tx) => tx['type'].toString().toLowerCase() == 'income')
-          .fold<num>(
-              0,
-              (sum, tx) =>
-                  sum +
-                  ((tx['transactionsAmount'] ?? tx['amount'] ?? 0) as num));
+          .where((tx) => _transactionType(tx) == 'income')
+          .fold<num>(0, (sum, tx) => sum + _transactionAmount(tx));
       final totalExpense = _transactions
-          .where((tx) => tx['type'].toString().toLowerCase() == 'expense')
-          .fold<num>(
-              0,
-              (sum, tx) =>
-                  sum +
-                  ((tx['transactionsAmount'] ?? tx['amount'] ?? 0) as num));
+          .where((tx) => _transactionType(tx) == 'expense')
+          .fold<num>(0, (sum, tx) => sum + _transactionAmount(tx));
       final totalBalance = _accounts.fold<num>(
         0,
         (sum, account) =>
@@ -136,10 +128,54 @@ class MockApiHandler {
       return _ok({
         'balanceSummary': {
           'totalBalance': totalBalance,
+          'allocatedBalance': _jars.fold<num>(
+              0, (sum, jar) => sum + ((jar['balance'] ?? 0) as num)),
+          'unallocatedBalance': totalBalance,
           'totalIncome': totalIncome,
           'totalExpense': totalExpense,
+          'netChange': totalIncome - totalExpense,
         },
+        'financialAccounts': _accounts,
+        'jarSummary': _jars.map((jar) {
+          final spent = _transactions
+              .where((tx) =>
+                  _transactionType(tx) == 'expense' &&
+                  tx['fromJarId']?.toString() == jar['id'].toString())
+              .fold<num>(0, (sum, tx) => sum + _transactionAmount(tx));
+          final balance = (jar['balance'] ?? 0) as num;
+          return {
+            'jarId': jar['id'],
+            'jarName': jar['name'],
+            'balance': balance,
+            'spent': spent,
+            'spentPercentage':
+                balance + spent == 0 ? 0 : (spent / (balance + spent) * 100),
+          };
+        }).toList(),
+        'categoryBreakdown': _categories.map((category) {
+          final total = _transactions
+              .where((tx) =>
+                  _transactionType(tx) == 'expense' &&
+                  tx['categoryId']?.toString() == category['id'].toString())
+              .fold<num>(0, (sum, tx) => sum + _transactionAmount(tx));
+          return {
+            'categoryId': category['id'],
+            'categoryName': category['name'],
+            'totalAmount': total,
+            'percentage': totalExpense == 0 ? 0 : (total / totalExpense * 100),
+          };
+        }).toList(),
         'recentTransactions': _transactions.take(5).toList(),
+        'goalProgress': _goals.map((goal) {
+          final target = (goal['targetAmount'] ?? 0) as num;
+          final current = (goal['currentAmount'] ?? 0) as num;
+          return {
+            'goalId': goal['id'],
+            'title': goal['title'] ?? goal['name'],
+            'progressPercentage': target == 0 ? 0 : (current / target * 100),
+            'daysRemaining': 30,
+          };
+        }).toList(),
       });
     }
     if (method == 'GET' && normalized == 'user/me') {
@@ -159,7 +195,67 @@ class MockApiHandler {
       return _ok({'message': 'updated'});
     }
     if (method == 'GET' && normalized == 'transactions') {
-      return _ok(_transactions);
+      final query = queryParameters ?? {};
+      var rows = _transactions.where((tx) {
+        final type = query['type']?.toString().toLowerCase();
+        if (type != null && type.isNotEmpty && _transactionType(tx) != type) {
+          return false;
+        }
+        final categoryId = query['categoryId']?.toString();
+        if (categoryId != null &&
+            categoryId.isNotEmpty &&
+            tx['categoryId']?.toString() != categoryId) {
+          return false;
+        }
+        final accountId = query['financialAccountId']?.toString();
+        if (accountId != null &&
+            accountId.isNotEmpty &&
+            tx['financialAccountId']?.toString() != accountId) {
+          return false;
+        }
+        final jarId = query['jarId']?.toString();
+        if (jarId != null && jarId.isNotEmpty) {
+          final fromJar = tx['fromJarId']?.toString();
+          final toJar = tx['toJarId']?.toString();
+          if (fromJar != jarId && toJar != jarId) return false;
+        }
+        final keyword = query['keyword']?.toString().toLowerCase();
+        if (keyword != null && keyword.isNotEmpty) {
+          final note =
+              (tx['note'] ?? tx['description'] ?? '').toString().toLowerCase();
+          if (!note.contains(keyword)) return false;
+        }
+        return true;
+      }).toList();
+
+      rows.sort((a, b) {
+        final aDate = DateTime.tryParse(
+                (a['date'] ?? a['transactionDate'] ?? '').toString()) ??
+            DateTime.fromMillisecondsSinceEpoch(0);
+        final bDate = DateTime.tryParse(
+                (b['date'] ?? b['transactionDate'] ?? '').toString()) ??
+            DateTime.fromMillisecondsSinceEpoch(0);
+        return bDate.compareTo(aDate);
+      });
+
+      final pageIndex = int.tryParse(query['pageIndex']?.toString() ?? '') ?? 1;
+      final pageSize = int.tryParse(query['pageSize']?.toString() ?? '') ?? 20;
+      final totalCount = rows.length;
+      final totalPages =
+          totalCount == 0 ? 1 : ((totalCount - 1) ~/ pageSize) + 1;
+      final start = ((pageIndex < 1 ? 1 : pageIndex) - 1) * pageSize;
+      final data = start >= rows.length
+          ? <Map<String, dynamic>>[]
+          : rows.skip(start).take(pageSize).toList();
+      return _ok({
+        'data': data,
+        'pagination': {
+          'page': pageIndex,
+          'pageSize': pageSize,
+          'totalCount': totalCount,
+          'totalPages': totalPages,
+        },
+      });
     }
     if (method == 'POST' && normalized == 'transactions') {
       final item = Map<String, dynamic>.from(data as Map);
@@ -180,6 +276,37 @@ class MockApiHandler {
       _applyTransactionToMockAccount(item, isReversal: false);
       _transactions.insert(0, item);
       return _ok(item, statusCode: 201);
+    }
+    if (method == 'PATCH' && normalized.startsWith('transactions/')) {
+      final id = normalized.split('/').last;
+      final index = _transactions.indexWhere((e) => e['id']?.toString() == id);
+      if (index >= 0) {
+        _applyTransactionToMockAccount(_transactions[index], isReversal: true);
+        final patch = Map<String, dynamic>.from(data as Map);
+        _transactions[index].addAll({
+          if (patch.containsKey('transactionsAmount'))
+            'transactionsAmount': patch['transactionsAmount'],
+          if (patch.containsKey('categoryId'))
+            'categoryId': patch['categoryId'],
+          if (patch.containsKey('note')) 'note': patch['note'],
+        });
+        final categoryId = _transactions[index]['categoryId']?.toString();
+        final matchedCategory =
+            _categories.cast<Map<String, dynamic>?>().firstWhere(
+                  (category) => category?['id']?.toString() == categoryId,
+                  orElse: () => null,
+                );
+        if (matchedCategory != null) {
+          _transactions[index]['category'] = {
+            'id': matchedCategory['id'],
+            'name': matchedCategory['name'],
+          };
+          _transactions[index]['categoryName'] = matchedCategory['name'];
+        }
+        _applyTransactionToMockAccount(_transactions[index], isReversal: false);
+        return _ok(_transactions[index]);
+      }
+      return _ok({'message': 'not found'}, statusCode: 404);
     }
     if (method == 'DELETE' && normalized.startsWith('transactions/')) {
       final id = normalized.split('/').last;
@@ -304,8 +431,87 @@ class MockApiHandler {
     );
   }
 
+  String _transactionType(Map<String, dynamic> transaction) {
+    return transaction['type'].toString().toLowerCase();
+  }
+
+  num _transactionAmount(Map<String, dynamic> transaction) {
+    final rawAmount =
+        transaction['transactionsAmount'] ?? transaction['amount'] ?? 0;
+    return rawAmount is num
+        ? rawAmount
+        : num.tryParse(rawAmount.toString()) ?? 0;
+  }
+
+  Map<String, dynamic>? _findAccount(dynamic id) {
+    final accountId = id?.toString();
+    if (accountId == null || accountId.isEmpty) return null;
+    return _accounts.cast<Map<String, dynamic>?>().firstWhere(
+          (item) => item?['id']?.toString() == accountId,
+          orElse: () => null,
+        );
+  }
+
+  Map<String, dynamic>? _findJar(dynamic id) {
+    final jarId = id?.toString();
+    if (jarId == null || jarId.isEmpty) return null;
+    return _jars.cast<Map<String, dynamic>?>().firstWhere(
+          (item) => item?['id']?.toString() == jarId,
+          orElse: () => null,
+        );
+  }
+
+  void _addAccountBalance(Map<String, dynamic> account, num delta) {
+    final currentBalance =
+        (account['currentBalance'] ?? account['balance'] ?? 0) as num;
+    final nextBalance = currentBalance + delta;
+    account['balance'] = nextBalance;
+    account['currentBalance'] = nextBalance;
+  }
+
+  void _addJarBalance(Map<String, dynamic> jar, num delta) {
+    final currentBalance = (jar['balance'] ?? 0) as num;
+    jar['balance'] = currentBalance + delta;
+  }
+
   void _applyTransactionToMockAccount(Map<String, dynamic> transaction,
       {required bool isReversal}) {
+    final amount = _transactionAmount(transaction);
+    final direction = isReversal ? -1 : 1;
+    final type = _transactionType(transaction);
+
+    if (type == 'expense') {
+      final fromJar = _findJar(transaction['fromJarId']);
+      final account = _findAccount(transaction['financialAccountId']);
+      if (fromJar != null) _addJarBalance(fromJar, -amount * direction);
+      if (account != null) _addAccountBalance(account, -amount * direction);
+      return;
+    }
+
+    if (type == 'income') {
+      final account = _findAccount(transaction['financialAccountId']);
+      if (account != null) _addAccountBalance(account, amount * direction);
+      return;
+    }
+
+    if (type == 'transfer') {
+      final fromJar = _findJar(transaction['fromJarId']);
+      final toJar = _findJar(transaction['toJarId']);
+      final account = _findAccount(transaction['financialAccountId']);
+
+      if (fromJar != null && toJar != null) {
+        _addJarBalance(fromJar, -amount * direction);
+        _addJarBalance(toJar, amount * direction);
+      } else if (account != null && toJar != null) {
+        _addAccountBalance(account, -amount * direction);
+        _addJarBalance(toJar, amount * direction);
+      } else if (fromJar != null && account != null) {
+        _addJarBalance(fromJar, -amount * direction);
+        _addAccountBalance(account, amount * direction);
+      }
+      return;
+    }
+
     final accountId = transaction['financialAccountId']?.toString();
     if (accountId == null || accountId.isEmpty) return;
 
@@ -315,13 +521,9 @@ class MockApiHandler {
         );
     if (account == null) return;
 
-    final rawAmount =
-        transaction['transactionsAmount'] ?? transaction['amount'] ?? 0;
-    final amount =
-        rawAmount is num ? rawAmount : num.tryParse(rawAmount.toString()) ?? 0;
     final currentBalance =
         (account['currentBalance'] ?? account['balance'] ?? 0) as num;
-    final isIncome = transaction['type'].toString().toLowerCase() == 'income';
+    final isIncome = type == 'income';
     final delta = isIncome ? amount : -amount;
     final nextBalance = currentBalance + (isReversal ? -delta : delta);
 
