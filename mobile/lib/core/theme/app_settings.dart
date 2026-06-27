@@ -15,9 +15,14 @@ class AppSettings extends ChangeNotifier {
   bool _isInitialized = false;
 
   final ChangeNotifier dashboardRefreshNotifier = ChangeNotifier();
+  final ChangeNotifier categoriesRefreshNotifier = ChangeNotifier();
 
   void triggerDashboardRefresh() {
     dashboardRefreshNotifier.notifyListeners();
+  }
+
+  void triggerCategoriesRefresh() {
+    categoriesRefreshNotifier.notifyListeners();
   }
 
   String get currency => _currency;

@@ -22,19 +22,7 @@ namespace Personal_Finance_Management.Service.category
         {
             var userIdGuid = GetCurrentUserId();
 
-            var defaultCategories = await _appDbContext.Categories
-                .AsNoTracking()
-                .Where(c => c.IsDefault && c.IsActive && c.DeletedAt == null)
-                .OrderBy(c => c.DisplayOrder)
-                .ThenBy(c => c.Name)
-                .Select(c => new Response.CategoryResponse
-                {
-                    Id = c.Id,
-                    Name = c.Name,
-                    Icon = c.Icon,
-                    Color = c.Color
-                })
-                .ToListAsync();
+            var defaultCategories = new List<Response.CategoryResponse>();
 
             var customCategories = await _appDbContext.Categories
                 .AsNoTracking()

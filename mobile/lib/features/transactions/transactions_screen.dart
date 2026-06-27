@@ -26,7 +26,14 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
   @override
   void initState() {
     super.initState();
+    AppSettings().categoriesRefreshNotifier.addListener(_fetchCategories);
     _loadInitialData();
+  }
+
+  @override
+  void dispose() {
+    AppSettings().categoriesRefreshNotifier.removeListener(_fetchCategories);
+    super.dispose();
   }
 
   Future<void> _loadInitialData() async {
@@ -65,8 +72,18 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
   Future<void> _fetchCategories() async {
     final response = await _apiClient.get('categories');
     if (response.statusCode == 200) {
+      final data = response.data;
+      List<dynamic> combined = [];
+      if (data is Map) {
+        final defaultCats = data['defaultCategories'] ?? data['DefaultCategories'] ?? [];
+        final customCats = data['customCategories'] ?? data['CustomCategories'] ?? [];
+        combined.addAll(defaultCats);
+        combined.addAll(customCats);
+      } else if (data is List) {
+        combined = data;
+      }
       setState(() {
-        _categories = response.data ?? [];
+        _categories = combined;
       });
     }
   }
@@ -74,8 +91,15 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
   Future<void> _fetchAccounts() async {
     final response = await _apiClient.get('financial-accounts');
     if (response.statusCode == 200) {
+      final data = response.data;
+      List<dynamic> parsed = [];
+      if (data is Map) {
+        parsed = data['data'] ?? data['Data'] ?? [];
+      } else if (data is List) {
+        parsed = data;
+      }
       setState(() {
-        _accounts = response.data ?? [];
+        _accounts = parsed;
       });
     }
   }
