@@ -29,11 +29,13 @@ class _WalletScreenState extends State<WalletScreen> with SingleTickerProviderSt
     _tabController.addListener(() {
       if (mounted) setState(() {}); // Refresh FAB dynamically when tab switches
     });
+    AppSettings().categoriesRefreshNotifier.addListener(_fetchCategories);
     _loadWalletData();
   }
 
   @override
   void dispose() {
+    AppSettings().categoriesRefreshNotifier.removeListener(_fetchCategories);
     _tabController.dispose();
     super.dispose();
   }

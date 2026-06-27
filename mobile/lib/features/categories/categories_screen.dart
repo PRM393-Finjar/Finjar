@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:finjar_mobile/core/theme/brutal_theme.dart';
 import 'package:finjar_mobile/core/network/api_client.dart';
+import 'package:finjar_mobile/core/theme/app_settings.dart';
 
 class CategoriesScreen extends StatefulWidget {
   const CategoriesScreen({Key? key}) : super(key: key);
@@ -72,6 +73,7 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
       if (response.statusCode == 200 || response.statusCode == 201) {
         _newCategoryController.clear();
         _fetchCategories();
+        AppSettings().triggerCategoriesRefresh();
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Thêm danh mục mới thành công!')),
         );
@@ -128,6 +130,7 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
     try {
       await _apiClient.delete('categories/$id');
       _fetchCategories();
+      AppSettings().triggerCategoriesRefresh();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Xóa danh mục thành công!')),
@@ -182,6 +185,7 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
                         'name': name,
                       });
                       _fetchCategories();
+                      AppSettings().triggerCategoriesRefresh();
                       if (mounted) Navigator.pop(context);
                     } catch (e) {
                       ScaffoldMessenger.of(context).showSnackBar(
