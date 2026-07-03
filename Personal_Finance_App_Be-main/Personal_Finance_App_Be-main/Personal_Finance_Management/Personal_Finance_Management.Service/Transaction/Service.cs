@@ -253,7 +253,7 @@ public class Service : IService
                 }
                 else
                 {
-                    throw new Exception("Insufficient funds");
+                    throw AppValidationException.BadRequest("Insufficient jar balance.", "fromJarId", "INSUFFICIENT_JAR_BALANCE");
                 }
             }
             else if (transaction.FromJarId == null && transaction.ToJarId == null && transaction.FinancialAccountId != null)
@@ -311,7 +311,7 @@ public class Service : IService
                 }
                 else
                 {
-                    throw new Exception("Insufficient funds");
+                    throw AppValidationException.BadRequest("Insufficient source jar balance.", "fromJarId", "INSUFFICIENT_JAR_BALANCE");
                 }
                 
             }
@@ -338,7 +338,7 @@ public class Service : IService
                 }
                 else
                 {
-                    throw new Exception("Insufficient funds");
+                    throw AppValidationException.BadRequest("Insufficient financial account balance.", "financialAccountId", "INSUFFICIENT_FINANCIAL_ACCOUNT_BALANCE");
                 }
                 
             }
@@ -365,7 +365,7 @@ public class Service : IService
                 }
                 else
                 {
-                    throw new Exception("Insufficient funds");
+                    throw AppValidationException.BadRequest("Insufficient source jar balance.", "fromJarId", "INSUFFICIENT_JAR_BALANCE");
                 }
                 
             }
@@ -401,12 +401,12 @@ public class Service : IService
         var user = await _dbContext.Accounts
             .FirstOrDefaultAsync(x => x.Id == userIdGuid);
         if (user == null)
-            throw new Exception("User not found");
+            throw AppValidationException.NotFound("User not found.", "userId", "USER_NOT_FOUND");
         var transaction = await _dbContext.Transactions
             .FirstOrDefaultAsync(x => x.Id == id);
         if (transaction == null)
         {
-            throw new Exception("Transaction not found");
+            throw AppValidationException.NotFound("Transaction not found.", "id", "TRANSACTION_NOT_FOUND");
         }
         if (transaction.UserId != userIdGuid)
         {
@@ -435,7 +435,7 @@ public class Service : IService
                 if (transaction.FromJarId != null && transaction.ToJarId == null && transaction.FinancialAccountId == null)
                 {
                     var fromJar = _dbContext.Jars.FirstOrDefault(x => x.Id == transaction.FromJarId);
-                    if(fromJar == null) throw new Exception("Jar not found");
+                    if(fromJar == null) throw AppValidationException.NotFound("Jar not found.", "fromJarId", "JAR_NOT_FOUND");
                     fromJar.Balance = fromJar.Balance + transaction.TransactionsAmount;
                     if (fromJar.Balance - newAmount >= 0)
                     {
@@ -444,7 +444,7 @@ public class Service : IService
                     }
                     else
                     {
-                        throw new Exception("Insufficient funds");
+                        throw AppValidationException.BadRequest("Insufficient jar balance.", "fromJarId", "INSUFFICIENT_JAR_BALANCE");
                     }
                 }
                 else if (transaction.FromJarId == null && transaction.ToJarId == null && transaction.FinancialAccountId != null)
@@ -475,11 +475,11 @@ public class Service : IService
                 if (transaction.FromJarId == null && transaction.ToJarId == null && transaction.FinancialAccountId != null)
                 {
                     var financialAccount = _dbContext.FinancialAccounts.FirstOrDefault(x => x.Id == transaction.FinancialAccountId);
-                    if (financialAccount == null) throw new Exception("Financial account not found");
+                    if (financialAccount == null) throw AppValidationException.NotFound("Financial account not found.", "financialAccountId", "FINANCIAL_ACCOUNT_NOT_FOUND");
                     var isUse = _dbContext.Transactions.Any(x => x.FinancialAccountId == financialAccount.Id && x.Type != "Income");
                     if (isUse)
                     {
-                        throw new Exception("The Income has been used!. The Change will terminated the existed money flow logic");
+                        throw AppValidationException.BadRequest("The Income has been used! The change will terminate the existing money flow logic.", "transactionsAmount", "INCOME_ALREADY_USED");
                     }
                     financialAccount.CurrentBalance = financialAccount.CurrentBalance -  transaction.TransactionsAmount;
                     transaction.TransactionsAmount = newAmount;
@@ -487,17 +487,12 @@ public class Service : IService
                 }
             }
             
-            else throw new Exception("Type not supported");
+            else throw AppValidationException.BadRequest("Type not supported for update.", "type", "TYPE_NOT_SUPPORTED");
            
         }
         transaction.CategoryId = newCategoryId ?? transaction.CategoryId;
         transaction.Note = newTransactionNote ?? transaction.Note;
-        // Đang sửa Update transaction trong đó update chỉ được số tiền, cate, Note. Nếu
-        // Update tiền thì thu tiền mới và trả tiền cũ về chỗ
-        // Vậy suy nghĩ đến bài toán chênh lệch Tiền cũ + (Khoảng mới - tiền cũ)
-        // Khoảng mới nhập > tiền cũ thì thu được số dương vậy thì + vô tiền cũ là ra khoảng cần bù. Vise versa
         
-        // Nguồn = Tiền cũ + (KHoảng mới -Tiền cũ)
         await _dbContext.SaveChangesAsync();
 
         // Evaluate goals for affected jars
@@ -527,12 +522,12 @@ public class Service : IService
         var user = await _dbContext.Accounts
             .FirstOrDefaultAsync(x => x.Id == userIdGuid);
         if (user == null)
-            throw new Exception("User not found");
+            throw AppValidationException.NotFound("User not found.", "userId", "USER_NOT_FOUND");
         var transaction = await _dbContext.Transactions
             .FirstOrDefaultAsync(x => x.Id == id);
         if (transaction == null)
         {
-            throw new Exception("Transaction not found");
+            throw AppValidationException.NotFound("Transaction not found.", "id", "TRANSACTION_NOT_FOUND");
         }
         if (transaction.UserId != userIdGuid)
         {

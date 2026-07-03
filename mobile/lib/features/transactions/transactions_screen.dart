@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:dio/dio.dart';
 import 'package:finjar_mobile/core/theme/brutal_theme.dart';
 import 'package:finjar_mobile/core/network/api_client.dart';
+import 'package:finjar_mobile/core/network/api_endpoints.dart';
 import 'package:finjar_mobile/core/theme/app_settings.dart';
 import 'package:finjar_mobile/core/theme/currency_input.dart';
 
@@ -82,7 +84,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
 
   Future<void> _fetchTransactions() async {
     final response = await _apiClient.get(
-      'transactions',
+      ApiEndpoints.transactions,
       queryParameters: _buildTransactionQuery(),
     );
     if (!mounted) return;
@@ -139,7 +141,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
   }
 
   Future<void> _fetchCategories() async {
-    final response = await _apiClient.get('categories');
+    final response = await _apiClient.get(ApiEndpoints.categories);
     if (!mounted) return;
     if (response.statusCode == 200) {
       final data = response.data;
@@ -157,7 +159,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
   }
 
   Future<void> _fetchAccounts() async {
-    final response = await _apiClient.get('financial-accounts');
+    final response = await _apiClient.get(ApiEndpoints.financialAccounts);
     if (!mounted) return;
     if (response.statusCode == 200) {
       final data = response.data;
@@ -167,7 +169,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
   }
 
   Future<void> _fetchJars() async {
-    final response = await _apiClient.get('jars');
+    final response = await _apiClient.get(ApiEndpoints.jars);
     if (!mounted) return;
     if (response.statusCode == 200) {
       final data = response.data;
@@ -177,7 +179,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
   }
 
   Future<void> _createTransaction(Map<String, dynamic> payload) async {
-    await _apiClient.post('transactions', data: payload);
+    await _apiClient.post(ApiEndpoints.transactions, data: payload);
     await _fetchTransactions();
     await Future.wait([_fetchAccounts(), _fetchJars()]);
     AppSettings().triggerDashboardRefresh();
@@ -187,7 +189,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
     String id,
     Map<String, dynamic> payload,
   ) async {
-    await _apiClient.patch('transactions/$id', data: payload);
+    await _apiClient.patch('${ApiEndpoints.transactions}/$id', data: payload);
     await _fetchTransactions();
     await Future.wait([_fetchAccounts(), _fetchJars()]);
     AppSettings().triggerDashboardRefresh();
@@ -196,7 +198,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
   Future<void> _deleteTransaction(String id) async {
     if (id.isEmpty) return;
     try {
-      await _apiClient.delete('transactions/$id');
+      await _apiClient.delete('${ApiEndpoints.transactions}/$id');
       await _fetchTransactions();
       await Future.wait([_fetchAccounts(), _fetchJars()]);
       AppSettings().triggerDashboardRefresh();
@@ -204,10 +206,10 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Xóa giao dịch thành công!')),
       );
-    } catch (_) {
+    } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Không thể xóa giao dịch. Hãy thử lại.')),
+        SnackBar(content: Text(_extractErrorMessage(e))),
       );
     }
   }
@@ -269,6 +271,28 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
     _fetchTransactions();
   }
 
+  String _extractErrorMessage(dynamic error) {
+    if (error is DioException) {
+      final data = error.response?.data;
+      if (data is Map) {
+        final details = data['details'];
+        if (details is String && details.isNotEmpty) return details;
+        if (details is Map) {
+          final firstError = details.values.first;
+          if (firstError is List && firstError.isNotEmpty) {
+            return firstError.first.toString();
+          }
+          if (firstError is String) return firstError;
+        }
+        final message = data['message'] ?? data['Message'];
+        if (message != null && message.toString().isNotEmpty) {
+          return message.toString();
+        }
+      }
+    }
+    return 'Đã xảy ra lỗi. Vui lòng thử lại.';
+  }
+
   void _showAddTransactionDialog() {
     final amountController = TextEditingController();
     final noteController = TextEditingController();
@@ -308,9 +332,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                     : noteController.text.trim(),
               };
 
-              if (type != 'Transfer') {
-                payload['date'] = selectedDate.toIso8601String();
-              }
+              payload['date'] = selectedDate.toIso8601String();
 
               if (type == 'Expense') {
                 if (fromJarId == null || fromJarId!.isEmpty) {
@@ -363,10 +385,10 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                 await _createTransaction(payload);
                 if (!sheetContext.mounted) return;
                 Navigator.pop(sheetContext);
-              } catch (_) {
+              } catch (e) {
                 if (!sheetContext.mounted) return;
                 setModalState(
-                    () => formError = 'Không thể tạo giao dịch. Hãy thử lại.');
+                    () => formError = _extractErrorMessage(e));
               }
             }
 
@@ -420,19 +442,17 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                       hint: '100.000',
                       controller: amountController,
                     ),
-                    if (type != 'Transfer') ...[
-                      const SizedBox(height: 12),
-                      _buildDateButton(
-                        label: 'Thời gian',
-                        value: _formatDateTime(selectedDate),
-                        onTap: () async {
-                          final picked = await _pickDateTime(selectedDate);
-                          if (picked != null) {
-                            setModalState(() => selectedDate = picked);
-                          }
-                        },
-                      ),
-                    ],
+                    const SizedBox(height: 12),
+                    _buildDateButton(
+                      label: 'Thời gian',
+                      value: _formatDateTime(selectedDate),
+                      onTap: () async {
+                        final picked = await _pickDateTime(selectedDate);
+                        if (picked != null) {
+                          setModalState(() => selectedDate = picked);
+                        }
+                      },
+                    ),
                     const SizedBox(height: 12),
                     BrutalInput(
                       label: 'Ghi chú',
@@ -561,15 +581,17 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                     ],
                   ),
                 ),
-                const SizedBox(height: 16),
-                BrutalButton(
-                  text: 'Sửa giao dịch',
-                  color: BrutalColors.purple,
-                  onTap: () {
-                    Navigator.pop(sheetContext);
-                    _showEditTransactionDialog(tx);
-                  },
-                ),
+                if (_transactionTypeKey(tx) != 'transfer') ...[
+                  const SizedBox(height: 16),
+                  BrutalButton(
+                    text: 'Sửa giao dịch',
+                    color: BrutalColors.purple,
+                    onTap: () {
+                      Navigator.pop(sheetContext);
+                      _showEditTransactionDialog(tx);
+                    },
+                  ),
+                ],
                 const SizedBox(height: 10),
                 BrutalButton(
                   text: 'Xóa giao dịch',
@@ -620,10 +642,10 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                 });
                 if (!sheetContext.mounted) return;
                 Navigator.pop(sheetContext);
-              } catch (_) {
+              } catch (e) {
                 if (!sheetContext.mounted) return;
                 setModalState(
-                    () => formError = 'Không thể cập nhật giao dịch.');
+                    () => formError = _extractErrorMessage(e));
               }
             }
 
