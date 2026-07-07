@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using System.Text;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Personal_Finance_Management.Repository;
@@ -34,17 +35,20 @@ public class Service : IService
     private readonly IEmailSender _emailSender;
     private readonly EmailOptions _options;
     private readonly ILogger<Service> _logger;
+    private readonly IHostEnvironment _environment;
 
     public Service(
         AppDbContext dbContext,
         IEmailSender emailSender,
         IOptions<EmailOptions> options,
-        ILogger<Service> logger)
+        ILogger<Service> logger,
+        IHostEnvironment environment)
     {
         _dbContext = dbContext;
         _emailSender = emailSender;
         _options = options.Value;
         _logger = logger;
+        _environment = environment;
     }
 
     public async Task StartPendingRegistrationAsync(
@@ -86,7 +90,11 @@ public class Service : IService
 
         await _dbContext.SaveChangesAsync(cancellationToken);
         await SendOtpEmailAsync(normalizedEmail, pending.FirstName, otp, cancellationToken);
-        _logger.LogInformation("Pending registration OTP for {Email} (dev log OTP: {Otp})", normalizedEmail, otp);
+        // H5: never log the raw OTP outside Development. Outside dev the log line is suppressed entirely.
+        if (_environment.IsDevelopment())
+        {
+            _logger.LogInformation("Pending registration OTP for {Email} (dev log OTP: {Otp})", normalizedEmail, otp);
+        }
     }
 
     public async Task VerifyOtpAsync(string email, string otp, CancellationToken cancellationToken = default)
@@ -121,7 +129,11 @@ public class Service : IService
             pending.UpdatedAt = DateTimeOffset.UtcNow;
             await _dbContext.SaveChangesAsync(cancellationToken);
             await SendOtpEmailAsync(normalizedEmail, pending.FirstName, otp, cancellationToken);
-            _logger.LogInformation("Resent pending registration OTP for {Email} (dev log OTP: {Otp})", normalizedEmail, otp);
+            // H5: suppress raw OTP outside Development.
+            if (_environment.IsDevelopment())
+            {
+                _logger.LogInformation("Resent pending registration OTP for {Email} (dev log OTP: {Otp})", normalizedEmail, otp);
+            }
             return;
         }
 
@@ -254,7 +266,11 @@ public class Service : IService
 
         await _dbContext.SaveChangesAsync(cancellationToken);
         await SendOtpEmailAsync(account.Email, account.FirstName, otp, cancellationToken);
-        _logger.LogInformation("Issued legacy email OTP for account {AccountId} (dev log OTP: {Otp})", account.Id, otp);
+        // H5: suppress raw OTP outside Development.
+        if (_environment.IsDevelopment())
+        {
+            _logger.LogInformation("Issued legacy email OTP for account {AccountId} (dev log OTP: {Otp})", account.Id, otp);
+        }
     }
 
     private async Task SendOtpEmailAsync(

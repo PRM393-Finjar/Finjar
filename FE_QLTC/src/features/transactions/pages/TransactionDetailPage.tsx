@@ -5,6 +5,8 @@ import { ArrowLeft } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 import { Button } from "@/shared/components/ui/button";
+import { Trash2 } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 
 import {
 
@@ -26,19 +28,33 @@ import {
 } from "@/shared/constants/userCopy";
 import { formatVnd } from "@/shared/lib/formatCurrency";
 
-import { useTransaction } from "../hooks/useTransactions";
+import { useTransaction, useDeleteTransaction, useRestoreTransaction } from "../hooks/useTransactions";
 
 import type { TransactionType } from "../types";
 
 
 
 export function TransactionDetailPage() {
-
   const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
 
   const { data, isLoading, isError, refetch } = useTransaction(id);
+  const { mutate: deleteTransaction, isPending: isDeleting } = useDeleteTransaction();
+  const { mutate: restoreTransaction, isPending: isRestoring } = useRestoreTransaction();
 
+  const handleDelete = () => {
+    if (!id || !window.confirm("Bạn có chắc chắn muốn xoá giao dịch này không?")) return;
+    deleteTransaction(id, {
+      onSuccess: () => navigate(ROUTES.TRANSACTIONS, { replace: true })
+    });
+  };
 
+  const handleRestore = () => {
+    if (!id) return;
+    restoreTransaction(id, {
+      onSuccess: () => refetch()
+    });
+  };
 
   if (isLoading) {
 
@@ -90,22 +106,47 @@ export function TransactionDetailPage() {
 
     <section className="mx-auto max-w-2xl space-y-6">
 
-      <div className="flex items-center gap-3">
-
-        <Button asChild variant="outline" size="sm" className="brutal-btn-outline cursor-pointer">
-
-          <Link to={ROUTES.TRANSACTIONS}>
-
-            <ArrowLeft className="mr-1 h-4 w-4" />
-
-            Danh sách
-
-          </Link>
-
-        </Button>
-
-        <h1 className="text-2xl font-extrabold tracking-tight">Chi tiết giao dịch</h1>
-
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <Button asChild variant="outline" size="sm" className="brutal-btn-outline cursor-pointer">
+            <Link to={ROUTES.TRANSACTIONS}>
+              <ArrowLeft className="mr-1 h-4 w-4" />
+              Danh sách
+            </Link>
+          </Button>
+          <h1 className="text-2xl font-extrabold tracking-tight">Chi tiết giao dịch</h1>
+        </div>
+        <div className="flex items-center gap-2">
+          {data.isDeleted ? (
+            <Button 
+              variant="default" 
+              size="sm" 
+              className="cursor-pointer"
+              onClick={handleRestore}
+              disabled={isRestoring}
+            >
+              {isRestoring ? "Đang khôi phục..." : "Khôi phục"}
+            </Button>
+          ) : (
+            <>
+              <Button asChild variant="outline" size="sm" className="brutal-btn-outline cursor-pointer">
+                <Link to={`/transactions/${id}/edit`}>
+                  Sửa
+                </Link>
+              </Button>
+              <Button 
+                variant="destructive" 
+                size="sm" 
+                className="cursor-pointer"
+                onClick={handleDelete}
+                disabled={isDeleting}
+              >
+                <Trash2 className="mr-1 h-4 w-4" />
+                {isDeleting ? "Đang xoá..." : "Xoá"}
+              </Button>
+            </>
+          )}
+        </div>
       </div>
 
 
@@ -114,9 +155,15 @@ export function TransactionDetailPage() {
 
         <CardHeader>
 
-          <CardTitle className="text-base">
+          <CardTitle className="text-base flex items-center gap-2">
 
             {TRANSACTION_TYPE_LABELS[data.type as TransactionType] ?? data.type}
+
+            {data.isDeleted && (
+              <span className="inline-flex items-center rounded-full bg-red-100 px-2.5 py-0.5 text-xs font-semibold text-red-800">
+                Đã xoá
+              </span>
+            )}
 
           </CardTitle>
 

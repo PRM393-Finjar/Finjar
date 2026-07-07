@@ -169,4 +169,10 @@ app.UseAuthorization();
 
 app.MapControllers();
 
+// Expose Program type for WebApplicationFactory<Program> in tests.
 app.Run();
+
+namespace Personal_Finance_Management.Api
+{
+    public partial class Program;
+}

@@ -17,7 +17,8 @@ public class Request
         public DateOnly? toDate { get; set; }
         public string? keyword { get; set; }
         public string? sortBy { get; set; }
-        public string? sortDir { get; set; }
+        public string? sortDir { get; set; } // asc or desc
+        public bool? isDeleted { get; set; } // default is false in Service.cs if null
     }
 
     // POST /api/v1/transactions

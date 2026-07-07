@@ -61,7 +61,8 @@ public class Service : IService
         };
 
 
-        Console.WriteLine(apiKey);
+        // H4: never log the AI provider API key, even on the server console.
+        // The previous line printed the raw key to stdout and ended up in container/host logs.
         if (!effectiveSetting.IsEnabled || string.IsNullOrWhiteSpace(apiKey))
         {
             return BuildRuleBasedFallback();

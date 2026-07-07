@@ -4,6 +4,7 @@ using Personal_Finance_Management.Repository;
 using Personal_Finance_Management.Repository.Entity;
 using Personal_Finance_Management.Repository.Enum;
 using Personal_Finance_Management.Service.Base;
+using Personal_Finance_Management.Service.Validations;
 
 
 namespace Personal_Finance_Management.Service.limit;
@@ -99,7 +100,11 @@ public class Service : IService
                 Period = limit.Period,
                 AlertAtPercentage = limit.AlertAtPercentage,
                 CurrentSpent = currentSpent,
-                CurrentPercentage = (double)((currentSpent * 100) / limit.LimitAmount),
+                // H6: guard against DivideByZero when LimitAmount is 0 (shouldn't happen after the
+                // CreateLimit/UpdateLimit validators, but defensive against legacy rows).
+                CurrentPercentage = limit.LimitAmount > 0
+                    ? (double)((currentSpent * 100) / limit.LimitAmount)
+                    : 0d,
                 Status = "Active",
                 TargetType = targetType
             };
@@ -112,6 +117,17 @@ public class Service : IService
     public async Task<Response.CreateLimitResponse> CreateLimit(Request.CreateLimitRequest request)
     {
         var userId = GetCurrentUserId();
+
+        // H6: reject LimitAmount <= 0. Without this guard, every later computation that divides by
+        // LimitAmount (CurrentPercentage in GetLimits, alertThreshold in Transaction.Service.CheckLimit)
+        // can throw DivideByZeroException.
+        if (request.LimitAmount <= 0)
+        {
+            throw AppValidationException.BadRequest(
+                "LimitAmount must be greater than zero.",
+                "LimitAmount",
+                "INVALID_LIMIT_AMOUNT");
+        }
 
         var now = DateTimeOffset.UtcNow;
         var limit = new SpendingLimit()
@@ -160,9 +176,19 @@ public class Service : IService
 
         if (limit == null)
             throw new ("Limit not found");
-        
+
         if (request.LimitAmount.HasValue)
+        {
+            // H6: reject LimitAmount <= 0 to keep downstream percentage math safe.
+            if (request.LimitAmount.Value <= 0)
+            {
+                throw AppValidationException.BadRequest(
+                    "LimitAmount must be greater than zero.",
+                    "LimitAmount",
+                    "INVALID_LIMIT_AMOUNT");
+            }
             limit.LimitAmount = request.LimitAmount.Value;
+        }
 
         if (request.AlertAtPercentage.HasValue)
             limit.AlertAtPercentage = request.AlertAtPercentage.Value;

@@ -2,8 +2,8 @@ import type { AuthResponse, LoginRequest, RegisterRequest, RegisterResponse } fr
 import { mapAxiosAuthError } from "./backendAuth";
 import { apiClient } from "@/lib/axios";
 import { mockData } from "@/lib/mockData";
-import { env } from "@/lib/env";
 import { requestWithStrategy, wait } from "@/lib/requestStrategy";
+import type { RequestMode } from "@/lib/requestStrategy";
 import { API_ENDPOINT } from "@/shared/constants";
 
 /**
@@ -39,7 +39,6 @@ function adaptAuthResponse(be: BackendAuthResponse): AuthResponse {
     email: be.email,
     role: String(be.role ?? "User"),
     isOnboardingCompleted: be.isOnboardingCompleted ?? true,
-    isEmailVerified: be.isEmailVerified ?? true,
     accessToken: token,
   };
 }

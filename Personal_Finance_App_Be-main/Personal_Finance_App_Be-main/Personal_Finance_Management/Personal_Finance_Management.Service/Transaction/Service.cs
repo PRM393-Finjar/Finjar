@@ -32,8 +32,9 @@ public class Service : IService
         if (user == null)
             throw new Exception("User not found");
         
+        var isDeleted = request.isDeleted ?? false;
         var query = _dbContext.Transactions
-            .Where(x => x.UserId == userIdGuid && x.IsDeleted == false);
+            .Where(x => x.UserId == userIdGuid && x.IsDeleted == isDeleted);
 
         // Filter by financialAccountId
         if (request.financialAccountId.HasValue)
@@ -115,8 +116,14 @@ public class Service : IService
             query = query.OrderByDescending(x => x.CreatedAt);
         }
         
-        query = query.Skip((request.pageIndex - 1) * request.pageSize).Take(request.pageSize);
-        var selectedQuery = query.Select(x => new Response.GetTransactionResponse
+        // H7: CountAsync MUST execute before Skip/Take so totalCount reflects ALL matching records
+        // (the previous order applied Skip/Take first, then Count() on the trimmed window — wrong).
+        var totalCount = await query.CountAsync();
+        var pagedQuery = query
+            .Skip((request.pageIndex - 1) * request.pageSize)
+            .Take(request.pageSize);
+
+        var selectedQuery = pagedQuery.Select(x => new Response.GetTransactionResponse
         {
             id = x.Id,
             type = x.Type,
@@ -139,7 +146,6 @@ public class Service : IService
                 name = x.Category.Name,
             }
         });
-        var totalCount =  query.Count();
         var selectedPagination = new Response.PaginationResponse
         {
             page = request.pageIndex,
@@ -147,27 +153,141 @@ public class Service : IService
             totalCount = totalCount,
             totalPages = (totalCount + request.pageSize - 1) / request.pageSize,
         };
-        
+
         var result = new Response.GetTransactionsResult
         {
-            data = selectedQuery.ToList(),
+            data = await selectedQuery.ToListAsync(),
             pagination = selectedPagination,
         };
-        
+
         return result;
+    }
+
+    public async Task<Response.GetTransactionResponse> GetTransaction(Guid id)
+    {
+        var userIdGuid = GetCurrentUserId();
+
+        var transaction = await _dbContext.Transactions
+            .Include(x => x.FinancialAccount)
+            .Include(x => x.Category)
+            .Include(x => x.FromJar)
+            .Include(x => x.ToJar)
+            .FirstOrDefaultAsync(x => x.Id == id && x.UserId == userIdGuid);
+
+        if (transaction == null)
+        {
+            throw AppValidationException.NotFound("Transaction not found.", "id", "TRANSACTION_NOT_FOUND");
+        }
+
+        var res = new Response.GetTransactionResponse
+        {
+            id = transaction.Id,
+            type = transaction.Type,
+            transactionsAmount = transaction.TransactionsAmount,
+            note = transaction.Note,
+            date = transaction.TransactionDate,
+            financialAccount = new Response.TransactionFinancialAccountResponse
+            {
+                id = transaction.FinancialAccountId,
+                name = transaction.FinancialAccount?.Name
+            },
+            jar = new Response.TransactionJarResponse
+            {
+                id = transaction.FromJarId,
+                name = transaction.FromJar?.Name
+            },
+            category = transaction.CategoryId.HasValue ? new Response.TransactionCategoryResponse
+            {
+                id = transaction.CategoryId,
+                name = transaction.Category?.Name
+            } : null,
+            financialAccountId = transaction.FinancialAccountId,
+            fromJarId = transaction.FromJarId,
+            toJarId = transaction.ToJarId,
+            categoryId = transaction.CategoryId,
+            toJar = transaction.ToJarId.HasValue ? new Response.TransactionJarResponse
+            {
+                id = transaction.ToJarId,
+                name = transaction.ToJar?.Name
+            } : null,
+            isDeleted = transaction.IsDeleted
+        };
+
+        // Note: The original GetTransactionResponse doesn't have fromJar and toJar explicitly mapped,
+        // it uses `jar`. For Transfers, fromJar is mapped to `jar`, but frontend mapDetail needs more fields:
+        // financialAccountId, fromJarId, toJarId, categoryId, toJar
+        // Wait, I will just extend GetTransactionResponse to support these if necessary, but actually the frontend
+        // mapDetail assumes it receives the raw API response and maps it. I'll return the extra fields directly.
+        
+        return res;
     }
 
     public async Task<Response.CreateTransactionResponse> CreateTransaction(Request.CreateTransactionRequest request)
     {
         var userIdGuid = GetCurrentUserId();
 
+        // Validation: date cannot be in the future
+        if (request.date > DateTimeOffset.UtcNow)
+        {
+            throw AppValidationException.BadRequest(
+                "Transaction date cannot be in the future.",
+                "date",
+                "INVALID_DATE");
+        }
+
+        // Validation: amount must be positive
+        if (request.transactionsAmount <= 0)
+        {
+            throw AppValidationException.BadRequest(
+                "transactionsAmount must be greater than zero.",
+                "transactionsAmount",
+                "INVALID_AMOUNT");
+        }
+
+        // Structural validation based on transaction type
+        if (request.type == "Income")
+        {
+            if (!request.financialAccountId.HasValue || request.fromJarId.HasValue || request.toJarId.HasValue)
+                throw AppValidationException.BadRequest("Income must target a financial account and not involve jars.", "type", "INVALID_INCOME_PAYLOAD");
+        }
+        else if (request.type == "Expense")
+        {
+            if (!request.fromJarId.HasValue || request.financialAccountId.HasValue || request.toJarId.HasValue)
+                throw AppValidationException.BadRequest("Expense must draw from a jar and not target an account or another jar.", "type", "INVALID_EXPENSE_PAYLOAD");
+        }
+        else if (request.type == "Transfer")
+        {
+            bool jarToJar = request.fromJarId.HasValue && request.toJarId.HasValue && !request.financialAccountId.HasValue;
+            bool accountToJar = !request.fromJarId.HasValue && request.toJarId.HasValue && request.financialAccountId.HasValue;
+            bool jarToAccount = request.fromJarId.HasValue && !request.toJarId.HasValue && request.financialAccountId.HasValue;
+            if (!jarToJar && !accountToJar && !jarToAccount)
+                throw AppValidationException.BadRequest("Invalid transfer payload. Must provide correct from/to jars or account.", "type", "INVALID_TRANSFER_PAYLOAD");
+        }
+        else
+        {
+            throw AppValidationException.BadRequest("Invalid transaction type.", "type", "INVALID_TRANSACTION_TYPE");
+        }
+
+        // Phase 5/6 validation: source and destination jars must be different
+        if (request.fromJarId.HasValue && request.toJarId.HasValue
+            && request.fromJarId.Value == request.toJarId.Value)
+        {
+            throw AppValidationException.BadRequest(
+                "fromJarId and toJarId must be different.",
+                "toJarId",
+                "SAME_SOURCE_AND_DESTINATION");
+        }
+
         var user = await _dbContext.Accounts
             .FirstOrDefaultAsync(x => x.Id == userIdGuid);
         if (user == null)
             throw new Exception("User not found");
+
+        // Fully qualified entity type to avoid collision with the Personal_Finance_Management.Service.FinancialAccount namespace.
+        Repository.Entity.FinancialAccount? financialAccount = null;
         if (request.financialAccountId.HasValue)
         {
-            var financialAccount = await _dbContext.FinancialAccounts
+            financialAccount = await _dbContext.FinancialAccounts
                 .FirstOrDefaultAsync(x => x.Id == request.financialAccountId.Value && x.UserId == userIdGuid && x.IsActive);
             if (financialAccount == null)
             {
@@ -181,6 +301,24 @@ public class Service : IService
                     "financialAccountId",
                     "LINKED_ACCOUNT_MANUAL_TRANSACTION_NOT_ALLOWED");
             }
+        }
+
+        // Phase 6: verify ownership of referenced jar and category
+        if (request.fromJarId.HasValue
+            && !await _dbContext.Jars.AnyAsync(j => j.Id == request.fromJarId.Value && j.UserId == userIdGuid))
+        {
+            throw AppValidationException.NotFound("Jar not found.", "fromJarId", "JAR_NOT_FOUND");
+        }
+        if (request.toJarId.HasValue
+            && !await _dbContext.Jars.AnyAsync(j => j.Id == request.toJarId.Value && j.UserId == userIdGuid))
+        {
+            throw AppValidationException.NotFound("Jar not found.", "toJarId", "JAR_NOT_FOUND");
+        }
+        if (request.categoryId.HasValue
+            && !await _dbContext.Categories.AnyAsync(c => c.Id == request.categoryId.Value
+                && (c.OwnerUserId == null || c.OwnerUserId == userIdGuid)))
+        {
+            throw AppValidationException.NotFound("Category not found.", "categoryId", "CATEGORY_NOT_FOUND");
         }
 
         var transaction = new Repository.Entity.Transaction()
@@ -217,84 +355,29 @@ public class Service : IService
             CreatedAt = DateTimeOffset.UtcNow,
             UpdatedAt = DateTimeOffset.UtcNow,
         };
-        _dbContext.Transactions.Add(transaction);
-        if(transaction.Type == "Expense")
+
+        // H3 + H8: wrap ALL financial mutations inside a DB transaction so partial writes are impossible.
+        await using var databaseTransaction = await _dbContext.Database.BeginTransactionAsync();
+        try
         {
-            // Pay for something by selected Jar
-            if (transaction.FromJarId != null  && transaction.ToJarId == null && transaction.FinancialAccountId == null)
-            {
-                var jar = _dbContext.Jars.FirstOrDefault(x => x.Id == transaction.FromJarId);
-                if(jar.Balance - transaction.TransactionsAmount >= 0)
-                {
-                    jar.Balance = jar.Balance - transaction.TransactionsAmount;
-                }
-                else
-                {
-                    throw new Exception("Insufficient funds");
-                }
-            }
-        }else if (transaction.Type == "Income")
-        {
-            if (transaction.ToJarId == null && transaction.FromJarId == null 
-                                            && transaction.FinancialAccountId != null)
-            {
-                var financialAccount = _dbContext.FinancialAccounts.FirstOrDefault(x => x.Id == transaction.FinancialAccountId);
-                financialAccount.CurrentBalance = financialAccount.CurrentBalance +  transaction.TransactionsAmount;
-            }
-        }else if (transaction.Type == "Transfer") {
-            // Transfer from jar to jar
-            if (transaction.FromJarId != null && transaction.ToJarId != null && transaction.FinancialAccountId == null)
-            {
-                var fromJar = _dbContext.Jars.FirstOrDefault(x => x.Id == transaction.FromJarId);
-                var toJar = _dbContext.Jars.FirstOrDefault(x => x.Id == transaction.ToJarId);
-                if (fromJar.Balance - transaction.TransactionsAmount >= 0)
-                {
-                    fromJar.Balance = fromJar.Balance - transaction.TransactionsAmount;
-                    toJar.Balance = toJar.Balance + transaction.TransactionsAmount;
-                }
-                else
-                {
-                    throw new Exception("Insufficient funds");
-                }
-                
-            }
-            // Transfer from account to jar
-            else if (transaction.FromJarId == null && transaction.ToJarId != null && 
-                     transaction.FinancialAccountId != null)
-            {
-                var toJar = _dbContext.Jars.FirstOrDefault(x => x.Id == transaction.ToJarId);
-                var finnacialAccount = _dbContext.FinancialAccounts.FirstOrDefault(x => x.Id == transaction.FinancialAccountId);
-                if (finnacialAccount.CurrentBalance - transaction.TransactionsAmount >= 0)
-                {
-                    finnacialAccount.CurrentBalance = finnacialAccount.CurrentBalance - transaction.TransactionsAmount;
-                    toJar.Balance = toJar.Balance + transaction.TransactionsAmount;
-                }
-                else
-                {
-                    throw new Exception("Insufficient funds");
-                }
-                
-            }
-            // Transfer from jar to account
-            else if (transaction.FromJarId != null && transaction.ToJarId == null && 
-                     transaction.FinancialAccountId != null)
-            {
-                var fromJar = _dbContext.Jars.FirstOrDefault(x => x.Id == transaction.FromJarId);
-                var finnacialAccount = _dbContext.FinancialAccounts.FirstOrDefault(x => x.Id == transaction.FinancialAccountId);
-                if (fromJar.Balance - transaction.TransactionsAmount >= 0)
-                {
-                    fromJar.Balance = fromJar.Balance - transaction.TransactionsAmount;
-                    finnacialAccount.CurrentBalance = finnacialAccount.CurrentBalance + transaction.TransactionsAmount;
-                }
-                else
-                {
-                    throw new Exception("Insufficient funds");
-                }
-                
-            }
+            _dbContext.Transactions.Add(transaction);
+
+            // Phase 2: apply balance mutation forward (validate sufficient balance for Expense/Transfer)
+            await ApplyBalanceMutationAsync(transaction, reverse: false);
+
+            await _dbContext.SaveChangesAsync();
+            await databaseTransaction.CommitAsync();
         }
-        
-        await _dbContext.SaveChangesAsync();
+        catch (DbUpdateConcurrencyException)
+        {
+            await databaseTransaction.RollbackAsync();
+            throw AppValidationException.BadRequest("Another process modified the balance concurrently. Please try again.", "transactionsAmount", "CONCURRENCY_ERROR");
+        }
+        catch
+        {
+            await databaseTransaction.RollbackAsync();
+            throw;
+        }
 
         // Evaluate goals for affected jars
         if (transaction.ToJarId != null)
@@ -321,106 +404,102 @@ public class Service : IService
     {
         var userIdGuid = GetCurrentUserId();
 
+        // Validation: amount must be positive when provided
+        if (request.transactionsAmount.HasValue && request.transactionsAmount.Value <= 0)
+        {
+            throw AppValidationException.BadRequest(
+                "transactionsAmount must be greater than zero.",
+                "transactionsAmount",
+                "INVALID_AMOUNT");
+        }
+
         var user = await _dbContext.Accounts
             .FirstOrDefaultAsync(x => x.Id == userIdGuid);
         if (user == null)
             throw new Exception("User not found");
-        var transaction = await _dbContext.Transactions
-            .FirstOrDefaultAsync(x => x.Id == id);
-        if (transaction == null)
-        {
-            throw new Exception("Transaction not found");
-        }
-        if (transaction.UserId != userIdGuid)
-        {
-            throw AppValidationException.NotFound("Transaction not found.", "id", "TRANSACTION_NOT_FOUND");
-        }
 
-        if (transaction.SourceType != "Manual")
+        // H3 + H8: wrap the whole update in a DB transaction so reverse+apply+update are atomic.
+        await using var databaseTransaction = await _dbContext.Database.BeginTransactionAsync();
+        try
         {
-            throw AppValidationException.BadRequest(
-                "Linked bank transaction cannot be updated manually.",
-                "id",
-                "LINKED_TRANSACTION_UPDATE_NOT_ALLOWED");
-        }
-
-        // transaction.FinancialAccountId = request.financialAccountId ?? transaction.FinancialAccountId;
-        // transaction.FromJarId = request.fromJarId ?? transaction.FromJarId;
-        // transaction.ToJarId = request.toJarId ?? transaction.ToJarId;
-        // transaction.TransactionDate = request.date;
-        var newTransactionsAmount = request.transactionsAmount;
-        var newCategoryId = request.categoryId;
-        var newTransactionNote = request.note;
-        if( request.transactionsAmount != null )
-        {
-            if (transaction.Type == "Expense")
+            var transaction = await _dbContext.Transactions
+                .FirstOrDefaultAsync(x => x.Id == id);
+            if (transaction == null)
             {
-                if (transaction.FromJarId != null && transaction.ToJarId == null && transaction.FinancialAccountId == null)
-                {
-                    var fromJar = _dbContext.Jars.FirstOrDefault(x => x.Id == transaction.FromJarId);
-                    if(fromJar == null) throw new Exception("Jar not found");
-                    fromJar.Balance = fromJar.Balance + transaction.TransactionsAmount;
-                    if (fromJar.Balance - newTransactionsAmount >= 0)
-                    {
-                        transaction.TransactionsAmount = (decimal)newTransactionsAmount;
-                        fromJar.Balance = fromJar.Balance - transaction.TransactionsAmount;
-                    }
-                    else
-                    {
-                        throw new Exception("Insufficient funds");
-                    }
-                }
-                
+                throw new Exception("Transaction not found");
+            }
+            if (transaction.UserId != userIdGuid)
+            {
+                throw AppValidationException.NotFound("Transaction not found.", "id", "TRANSACTION_NOT_FOUND");
             }
 
-            else if (transaction.Type == "Income")
+            if (transaction.SourceType != "Manual")
             {
-                if (transaction.FromJarId == null && transaction.ToJarId == null && transaction.FinancialAccountId != null)
-                {
-                    var financialAccount = _dbContext.FinancialAccounts.FirstOrDefault(x => x.Id == transaction.FinancialAccountId);
-                    if (financialAccount == null) throw new Exception("Financial account not found");
-                    var isUse = _dbContext.Transactions.Any(x => x.FinancialAccountId == financialAccount.Id && x.Type != "Income");
-                    if (isUse)
-                    {
-                        throw new Exception("The Income has been used!. The Change will terminated the existed money flow logic");
-                    }
-                    financialAccount.CurrentBalance = financialAccount.CurrentBalance -  transaction.TransactionsAmount;
-                    transaction.TransactionsAmount = (decimal)newTransactionsAmount;
-                    financialAccount.CurrentBalance = financialAccount.CurrentBalance + transaction.TransactionsAmount;
-                }
+                throw AppValidationException.BadRequest(
+                    "Linked bank transaction cannot be updated manually.",
+                    "id",
+                    "LINKED_TRANSACTION_UPDATE_NOT_ALLOWED");
             }
-            
-            else throw new Exception("Type not supported");
-           
-        }
-        transaction.CategoryId = newCategoryId ?? transaction.CategoryId;
-        transaction.Note = newTransactionNote ?? transaction.Note;
-        // Đang sửa Update transaction trong đó update chỉ được số tiền, cate, Note. Nếu
-        // Update tiền thì thu tiền mới và trả tiền cũ về chỗ
-        // Vậy suy nghĩ đến bài toán chênh lệch Tiền cũ + (Khoảng mới - tiền cũ)
-        // Khoảng mới nhập > tiền cũ thì thu được số dương vậy thì + vô tiền cũ là ra khoảng cần bù. Vise versa
-        
-        // Nguồn = Tiền cũ + (KHoảng mới -Tiền cũ)
-        await _dbContext.SaveChangesAsync();
 
-        // Evaluate goals for affected jars
-        if (transaction.ToJarId != null)
-        {
-            await CheckAndCompleteGoals(transaction.ToJarId.Value);
-        }
-        if (transaction.FromJarId != null)
-        {
-            await CheckAndCompleteGoals(transaction.FromJarId.Value);
-        }
+            // Phase 6: validate ownership of referenced category (if changed)
+            if (request.categoryId.HasValue
+                && !await _dbContext.Categories.AnyAsync(c => c.Id == request.categoryId.Value
+                    && (c.OwnerUserId == null || c.OwnerUserId == userIdGuid)))
+            {
+                throw AppValidationException.NotFound("Category not found.", "categoryId", "CATEGORY_NOT_FOUND");
+            }
 
-        var result = new Response.UpdateTransactionResponse
+            // Phase 2 (Update): always REVERSE the old balance mutation first, then APPLY the new amount.
+            // For amount-only updates this is the only safe pattern that keeps balances correct
+            // even when type/source/destination don't change.
+            if (request.transactionsAmount.HasValue
+                && request.transactionsAmount.Value != transaction.TransactionsAmount)
+            {
+                // 1) Reverse the old effect
+                await ApplyBalanceMutationAsync(transaction, reverse: true);
+                // 2) Update amount
+                transaction.TransactionsAmount = request.transactionsAmount.Value;
+                transaction.UpdatedAt = DateTimeOffset.UtcNow;
+                // 3) Apply the new effect
+                await ApplyBalanceMutationAsync(transaction, reverse: false);
+            }
+
+            transaction.CategoryId = request.categoryId ?? transaction.CategoryId;
+            transaction.Note = request.note ?? transaction.Note;
+            transaction.UpdatedAt = DateTimeOffset.UtcNow;
+
+            await _dbContext.SaveChangesAsync();
+            await databaseTransaction.CommitAsync();
+
+            // Evaluate goals for affected jars
+            if (transaction.ToJarId != null)
+            {
+                await CheckAndCompleteGoals(transaction.ToJarId.Value);
+            }
+            if (transaction.FromJarId != null)
+            {
+                await CheckAndCompleteGoals(transaction.FromJarId.Value);
+            }
+
+            var result = new Response.UpdateTransactionResponse
+            {
+                id = id,
+                type = transaction.Type,
+                transactionsAmount = transaction.TransactionsAmount,
+                date = transaction.TransactionDate,
+            };
+            return result;
+        }
+        catch (DbUpdateConcurrencyException)
         {
-            id = id,
-            type = transaction.Type,
-            transactionsAmount = transaction.TransactionsAmount,
-            date = transaction.TransactionDate,
-        };
-        return result;
+            await databaseTransaction.RollbackAsync();
+            throw AppValidationException.BadRequest("Another process modified the balance concurrently. Please try again.", "transactionsAmount", "CONCURRENCY_ERROR");
+        }
+        catch
+        {
+            await databaseTransaction.RollbackAsync();
+            throw;
+        }
     }
 
     public async Task<Response.DeleteTransactionResponse> DeleteTransaction(Guid id)
@@ -431,42 +510,251 @@ public class Service : IService
             .FirstOrDefaultAsync(x => x.Id == userIdGuid);
         if (user == null)
             throw new Exception("User not found");
-        var transaction = await _dbContext.Transactions
-            .FirstOrDefaultAsync(x => x.Id == id);
-        if (transaction == null)
-        {
-            throw new Exception("Transaction not found");
-        }
-        if (transaction.UserId != userIdGuid)
-        {
-            throw AppValidationException.NotFound("Transaction not found.", "id", "TRANSACTION_NOT_FOUND");
-        }
 
-        if (transaction.SourceType != "Manual")
+        // H3 + H8: wrap reverse+soft-delete in a DB transaction.
+        await using var databaseTransaction = await _dbContext.Database.BeginTransactionAsync();
+        try
         {
-            throw AppValidationException.BadRequest(
-                "Linked bank transaction cannot be deleted manually.",
-                "id",
-                "LINKED_TRANSACTION_DELETE_NOT_ALLOWED");
-        }
+            var transaction = await _dbContext.Transactions
+                .FirstOrDefaultAsync(x => x.Id == id);
+            if (transaction == null)
+            {
+                throw new Exception("Transaction not found");
+            }
+            if (transaction.UserId != userIdGuid)
+            {
+                throw AppValidationException.NotFound("Transaction not found.", "id", "TRANSACTION_NOT_FOUND");
+            }
 
-        transaction.IsDeleted = true;
-        await _dbContext.SaveChangesAsync();
+            if (transaction.SourceType != "Manual")
+            {
+                throw AppValidationException.BadRequest(
+                    "Linked bank transaction cannot be deleted manually.",
+                    "id",
+                    "LINKED_TRANSACTION_DELETE_NOT_ALLOWED");
+            }
 
-        // Evaluate goals for affected jars (deletion might refund money if it was an expense)
-        if (transaction.ToJarId != null)
-        {
-            await CheckAndCompleteGoals(transaction.ToJarId.Value);
+            // Phase 2 (Delete) + H2: fully REVERSE all balance mutations for Income, Expense, and Transfer.
+            // This must run for every type, including Transfer (account↔jar and jar↔jar), and must NOT
+            // depend on transaction.SourceType == "Manual" check above for already imported rows.
+            await ApplyBalanceMutationAsync(transaction, reverse: true);
+
+            transaction.IsDeleted = true;
+            transaction.DeletedAt = DateTimeOffset.UtcNow;
+            transaction.UpdatedAt = DateTimeOffset.UtcNow;
+
+            await _dbContext.SaveChangesAsync();
+            await databaseTransaction.CommitAsync();
+
+            // Evaluate goals for affected jars (deletion might refund money if it was an expense)
+            if (transaction.ToJarId != null)
+            {
+                await CheckAndCompleteGoals(transaction.ToJarId.Value);
+            }
+            if (transaction.FromJarId != null)
+            {
+                await CheckAndCompleteGoals(transaction.FromJarId.Value);
+            }
+
+            var result = new Response.DeleteTransactionResponse
+            {
+                message = "Transaction deleted"
+            };
+            return result;
         }
-        if (transaction.FromJarId != null)
+        catch (DbUpdateConcurrencyException)
         {
-            await CheckAndCompleteGoals(transaction.FromJarId.Value);
+            await databaseTransaction.RollbackAsync();
+            throw AppValidationException.BadRequest("Another process modified the balance concurrently. Please try again.", "transactionsAmount", "CONCURRENCY_ERROR");
         }
-        var result = new Response.DeleteTransactionResponse
+        catch
         {
-            message = "Transaction deleted"
-        };
-        return result;
+            await databaseTransaction.RollbackAsync();
+            throw;
+        }
+    }
+
+    public async Task<Response.RestoreTransactionResponse> RestoreTransaction(Guid id)
+    {
+        var userIdGuid = GetCurrentUserId();
+
+        var user = await _dbContext.Accounts
+            .FirstOrDefaultAsync(x => x.Id == userIdGuid);
+        if (user == null)
+            throw new Exception("User not found");
+
+        await using var databaseTransaction = await _dbContext.Database.BeginTransactionAsync();
+        try
+        {
+            var transaction = await _dbContext.Transactions
+                .FirstOrDefaultAsync(x => x.Id == id);
+            if (transaction == null)
+            {
+                throw new Exception("Transaction not found");
+            }
+            if (transaction.UserId != userIdGuid)
+            {
+                throw AppValidationException.NotFound("Transaction not found.", "id", "TRANSACTION_NOT_FOUND");
+            }
+
+            if (!transaction.IsDeleted)
+            {
+                throw AppValidationException.BadRequest(
+                    "Transaction is not deleted.",
+                    "id",
+                    "TRANSACTION_NOT_DELETED");
+            }
+
+            // Re-apply the balance mutation for Income, Expense, and Transfer
+            await ApplyBalanceMutationAsync(transaction, reverse: false);
+
+            transaction.IsDeleted = false;
+            transaction.DeletedAt = null;
+            transaction.UpdatedAt = DateTimeOffset.UtcNow;
+
+            await _dbContext.SaveChangesAsync();
+            await databaseTransaction.CommitAsync();
+
+            // Evaluate goals for affected jars
+            if (transaction.ToJarId != null)
+            {
+                await CheckAndCompleteGoals(transaction.ToJarId.Value);
+            }
+            if (transaction.FromJarId != null)
+            {
+                await CheckAndCompleteGoals(transaction.FromJarId.Value);
+            }
+
+            var result = new Response.RestoreTransactionResponse
+            {
+                message = "Transaction restored"
+            };
+            return result;
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            await databaseTransaction.RollbackAsync();
+            throw AppValidationException.BadRequest("Another process modified the balance concurrently. Please try again.", "transactionsAmount", "CONCURRENCY_ERROR");
+        }
+        catch
+        {
+            await databaseTransaction.RollbackAsync();
+            throw;
+        }
+    }
+
+    /// <summary>
+    /// Apply (or reverse) the balance effect of a single transaction on the linked
+    /// FinancialAccount and/or Jars. Handles Income, Expense, and all three Transfer variants
+    /// (jar→jar, account→jar, jar→account).
+    /// 
+    /// Set reverse=true to undo the transaction's effect (used by Update/Delete).
+    /// Throws AppValidationException on insufficient balance when reverse=false.
+    /// 
+    /// H2: guarantees DeleteTransaction fully reverses balances for every transaction type.
+    /// H8: assumes the caller has wrapped this in a DB transaction.
+    /// </summary>
+    private async Task ApplyBalanceMutationAsync(Repository.Entity.Transaction transaction, bool reverse)
+    {
+        // For reverse=true we flip the sign: income subtract instead of add, expense add instead of subtract,
+        // and for transfers we swap the direction (return money to source, take from destination).
+        var sign = reverse ? -1m : 1m;
+        var amount = transaction.TransactionsAmount;
+
+        if (transaction.Type == "Income")
+        {
+            // Income targets a FinancialAccount (no jar involvement per current contract).
+            if (transaction.ToJarId == null && transaction.FromJarId == null && transaction.FinancialAccountId.HasValue)
+            {
+                var financialAccount = await _dbContext.FinancialAccounts
+                    .FirstOrDefaultAsync(x => x.Id == transaction.FinancialAccountId.Value);
+                if (financialAccount == null) return; // nothing to mutate; FK would have prevented insert anyway
+                var projected = financialAccount.CurrentBalance + sign * amount;
+                if (reverse && projected < 0)
+                {
+                    throw AppValidationException.BadRequest("Cannot reverse transaction because the funds have already been spent.", "transactionsAmount", "INSUFFICIENT_FUNDS_FOR_REVERSAL");
+                }
+                financialAccount.CurrentBalance = projected;
+            }
+        }
+        else if (transaction.Type == "Expense")
+        {
+            // Expense draws from FromJar (current contract).
+            if (transaction.FromJarId.HasValue && transaction.ToJarId == null && transaction.FinancialAccountId == null)
+            {
+                var fromJar = await _dbContext.Jars
+                    .FirstOrDefaultAsync(x => x.Id == transaction.FromJarId.Value);
+                if (fromJar == null) return;
+                var projected = fromJar.Balance - sign * amount;
+                if (!reverse && projected < 0)
+                {
+                    throw AppValidationException.BadRequest("Insufficient funds.", "transactionsAmount", "INSUFFICIENT_FUNDS");
+                }
+                fromJar.Balance = projected;
+            }
+        }
+        else if (transaction.Type == "Transfer")
+        {
+            // jar -> jar
+            if (transaction.FromJarId.HasValue && transaction.ToJarId.HasValue && transaction.FinancialAccountId == null)
+            {
+                var fromJar = await _dbContext.Jars.FirstOrDefaultAsync(x => x.Id == transaction.FromJarId.Value);
+                var toJar = await _dbContext.Jars.FirstOrDefaultAsync(x => x.Id == transaction.ToJarId.Value);
+                if (fromJar == null || toJar == null) return;
+                var projectedFrom = fromJar.Balance - sign * amount;
+                if (!reverse && projectedFrom < 0)
+                {
+                    throw AppValidationException.BadRequest("Insufficient funds.", "transactionsAmount", "INSUFFICIENT_FUNDS");
+                }
+                var projectedTo = toJar.Balance + sign * amount;
+                if (reverse && projectedTo < 0)
+                {
+                    throw AppValidationException.BadRequest("Cannot reverse transaction because the funds have already been spent.", "transactionsAmount", "INSUFFICIENT_FUNDS_FOR_REVERSAL");
+                }
+                fromJar.Balance = projectedFrom;
+                toJar.Balance = projectedTo;
+            }
+            // account -> jar
+            else if (transaction.FromJarId == null && transaction.ToJarId.HasValue && transaction.FinancialAccountId.HasValue)
+            {
+                var financialAccount = await _dbContext.FinancialAccounts
+                    .FirstOrDefaultAsync(x => x.Id == transaction.FinancialAccountId.Value);
+                var toJar = await _dbContext.Jars.FirstOrDefaultAsync(x => x.Id == transaction.ToJarId.Value);
+                if (financialAccount == null || toJar == null) return;
+                var projectedAcc = financialAccount.CurrentBalance - sign * amount;
+                if (!reverse && projectedAcc < 0)
+                {
+                    throw AppValidationException.BadRequest("Insufficient funds.", "transactionsAmount", "INSUFFICIENT_FUNDS");
+                }
+                var projectedTo = toJar.Balance + sign * amount;
+                if (reverse && projectedTo < 0)
+                {
+                    throw AppValidationException.BadRequest("Cannot reverse transaction because the funds have already been spent.", "transactionsAmount", "INSUFFICIENT_FUNDS_FOR_REVERSAL");
+                }
+                financialAccount.CurrentBalance = projectedAcc;
+                toJar.Balance = projectedTo;
+            }
+            // jar -> account
+            else if (transaction.FromJarId.HasValue && transaction.ToJarId == null && transaction.FinancialAccountId.HasValue)
+            {
+                var fromJar = await _dbContext.Jars.FirstOrDefaultAsync(x => x.Id == transaction.FromJarId.Value);
+                var financialAccount = await _dbContext.FinancialAccounts
+                    .FirstOrDefaultAsync(x => x.Id == transaction.FinancialAccountId.Value);
+                if (fromJar == null || financialAccount == null) return;
+                var projectedJar = fromJar.Balance - sign * amount;
+                if (!reverse && projectedJar < 0)
+                {
+                    throw AppValidationException.BadRequest("Insufficient funds.", "transactionsAmount", "INSUFFICIENT_FUNDS");
+                }
+                var projectedAcc = financialAccount.CurrentBalance + sign * amount;
+                if (reverse && projectedAcc < 0)
+                {
+                    throw AppValidationException.BadRequest("Cannot reverse transaction because the funds have already been spent.", "transactionsAmount", "INSUFFICIENT_FUNDS_FOR_REVERSAL");
+                }
+                fromJar.Balance = projectedJar;
+                financialAccount.CurrentBalance = projectedAcc;
+            }
+        }
     }
 
     private async Task CheckAndCompleteGoals(Guid jarId)
@@ -516,10 +804,22 @@ public class Service : IService
             .Where(x => x.JarId == jarId && x.IsActive == true)
             .ToListAsync();
 
+        if (!activeLimit.Any()) return;
+
+        // Optimization: Fetch currentSpent outside the loop to avoid N+1 queries.
+        var userIds = activeLimit.Select(l => l.UserId).Distinct().ToList();
+        var spentByUser = new Dictionary<Guid, decimal>();
+        foreach (var uid in userIds)
+        {
+            spentByUser[uid] = await GetCurrentSpentByJar(jarId, uid);
+        }
+
         foreach (var item in activeLimit)
         {
-            var currentSpent = await GetCurrentSpentByJar(jarId, item.UserId);
-            var alertThreshold = (item.AlertAtPercentage * 100) / item.LimitAmount;
+            var currentSpent = spentByUser[item.UserId];
+            // H1: alert threshold = LimitAmount * AlertAtPercentage / 100
+            // (previous formula was inverted and produced nonsense like 800 when LimitAmount=1 and percentage=8)
+            var alertThreshold = item.LimitAmount * item.AlertAtPercentage / 100m;
 
             // Business rule:
             // - Alert threshold only creates warning notification and keeps limit active.

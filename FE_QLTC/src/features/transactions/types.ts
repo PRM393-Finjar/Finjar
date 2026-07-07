@@ -11,6 +11,7 @@ export interface TransactionItem {
   jarName?: string | null;
   toJarName?: string | null;
   categoryName?: string | null;
+  isDeleted: boolean;
 }
 
 export interface TransactionDetail extends TransactionItem {
@@ -44,6 +45,7 @@ export interface TransactionListParams {
   keyword?: string;
   sortBy?: "date" | "amount";
   sortDir?: "asc" | "desc";
+  isDeleted?: boolean;
 }
 
 export interface CreateTransactionPayload {

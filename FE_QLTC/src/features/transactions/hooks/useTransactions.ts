@@ -61,3 +61,14 @@ export function useDeleteTransaction() {
     },
   });
 }
+
+export function useRestoreTransaction() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (id: string) => transactionService.restore(id),
+    onSuccess: () => {
+      invalidateFinanceQueries(queryClient);
+    },
+  });
+}

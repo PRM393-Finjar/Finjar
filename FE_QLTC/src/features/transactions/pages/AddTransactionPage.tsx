@@ -120,6 +120,8 @@ export function AddTransactionPage() {
         return null;
       }
       dateIso = parsedAt.toISOString();
+    } else {
+      dateIso = new Date().toISOString();
     }
 
     const cat = categoryId || null;
@@ -181,6 +183,7 @@ export function AddTransactionPage() {
           fromJarId,
           toJarId,
           financialAccountId: null,
+          date: dateIso,
         };
       }
       if (transferMode === "accountToJar") {
@@ -196,6 +199,7 @@ export function AddTransactionPage() {
           financialAccountId,
           toJarId,
           fromJarId: null,
+          date: dateIso,
         };
       }
       if (!fromJarId || !financialAccountId) {
@@ -210,6 +214,7 @@ export function AddTransactionPage() {
         fromJarId,
         financialAccountId,
         toJarId: null,
+        date: dateIso,
       };
     }
 

@@ -23,6 +23,7 @@ interface TransactionApiRow {
   financialAccount?: { id?: string | null; name?: string | null };
   jar?: { id?: string | null; name?: string | null };
   category?: { id?: string | null; name?: string | null };
+  isDeleted?: boolean;
 }
 
 interface TransactionsListApiBody {
@@ -40,6 +41,7 @@ function mapRow(row: TransactionApiRow): TransactionItem {
     financialAccountName: row.financialAccount?.name,
     jarName: row.jar?.name,
     categoryName: row.category?.name,
+    isDeleted: row.isDeleted ?? false,
   };
 }
 
@@ -74,6 +76,7 @@ function buildListParams(params?: TransactionListParams) {
     keyword: params.keyword,
     sortBy: params.sortBy,
     sortDir: params.sortDir,
+    isDeleted: params.isDeleted,
   };
 }
 
@@ -124,6 +127,7 @@ export const transactionService = {
       amount: Number(row.transactionsAmount),
       note: payload.note ?? "",
       transactionDate: row.date,
+      isDeleted: false,
     };
   },
 
@@ -143,10 +147,15 @@ export const transactionService = {
       amount: Number(row.transactionsAmount),
       note: payload.note ?? "",
       transactionDate: row.date,
+      isDeleted: false,
     };
   },
 
   async remove(id: string): Promise<DeleteTransactionResult> {
     return (await apiClient.delete(`${BASE}/${id}`)) as DeleteTransactionResult;
+  },
+
+  async restore(id: string): Promise<{ message: string }> {
+    return (await apiClient.post(`${BASE}/${id}/restore`)) as { message: string };
   },
 };

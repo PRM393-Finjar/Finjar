@@ -1,13 +1,15 @@
 import 'package:dio/dio.dart';
 
 class MockApiHandler {
+  Response? Function(String method, String path, dynamic data)? interceptor;
+  
   int _nextId = 100;
   final List<Map<String, dynamic>> _transactions = [
     {
       'id': 1,
       'type': 'Expense',
       'amount': 45000,
-      'description': 'Cà phê sáng',
+      'note': 'Cà phê sáng',
       'transactionDate': DateTime.now().toIso8601String(),
       'categoryName': 'Ăn uống',
     },
@@ -15,7 +17,7 @@ class MockApiHandler {
       'id': 2,
       'type': 'Income',
       'amount': 15000000,
-      'description': 'Lương tháng',
+      'note': 'Lương tháng',
       'transactionDate': DateTime.now().toIso8601String(),
       'categoryName': 'Thu nhập',
     },
@@ -56,8 +58,15 @@ class MockApiHandler {
     dynamic data,
     Map<String, dynamic>? queryParameters,
   }) async {
-    await Future<void>.delayed(const Duration(milliseconds: 200));
+    await Future<void>.delayed(const Duration(milliseconds: 20));
     final normalized = path.replaceAll(RegExp(r'^/+|/+$'), '');
+
+    if (interceptor != null) {
+      final interceptedResponse = interceptor!(method, normalized, data);
+      if (interceptedResponse != null) {
+        return interceptedResponse;
+      }
+    }
 
     if (method == 'POST' && normalized == 'auth/login') {
       return _ok({'token': 'mock-jwt-token', 'accessToken': 'mock-jwt-token'});
@@ -98,7 +107,7 @@ class MockApiHandler {
       return _ok({'message': 'updated'});
     }
     if (method == 'GET' && normalized == 'transactions') {
-      return _ok(_transactions);
+      return _ok({'data': _transactions});
     }
     if (method == 'POST' && normalized == 'transactions') {
       final item = Map<String, dynamic>.from(data as Map);

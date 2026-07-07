@@ -19,6 +19,13 @@ public class Response
         public required TransactionFinancialAccountResponse financialAccount { get; set; }
         public TransactionJarResponse? jar { get; set; }
         public TransactionCategoryResponse? category { get; set; }
+
+        public Guid? financialAccountId { get; set; }
+        public Guid? fromJarId { get; set; }
+        public Guid? toJarId { get; set; }
+        public Guid? categoryId { get; set; }
+        public TransactionJarResponse? toJar { get; set; }
+        public bool isDeleted { get; set; }
     }
 
     public class TransactionFinancialAccountResponse
@@ -68,6 +75,11 @@ public class Response
 
     // DELETE /api/v1/transactions/{id}
     public class DeleteTransactionResponse
+    {
+        public required string message { get; set; }
+    }
+
+    public class RestoreTransactionResponse
     {
         public required string message { get; set; }
     }

@@ -22,6 +22,13 @@ public class TransactionsController : ControllerBase
         return Ok(result);
     }
 
+    [HttpGet("{id}")]
+    public async Task<IActionResult> GetTransaction(Guid id)
+    {
+        var result = await _service.GetTransaction(id);
+        return Ok(result);
+    }
+
     [HttpPost("")]
     public async Task<IActionResult> CreateTransactions([FromBody] Request.CreateTransactionRequest request)
     {
@@ -40,6 +47,13 @@ public class TransactionsController : ControllerBase
     public async Task<IActionResult> DeleteTransactions(Guid id)
     {
         var result = await _service.DeleteTransaction(id);
+        return Ok(result);
+    }
+
+    [HttpPost("{id}/restore")]
+    public async Task<IActionResult> RestoreTransactions(Guid id)
+    {
+        var result = await _service.RestoreTransaction(id);
         return Ok(result);
     }
 

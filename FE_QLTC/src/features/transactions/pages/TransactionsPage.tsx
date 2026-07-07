@@ -57,17 +57,14 @@ function amountPrefix(type: string) {
 export function TransactionsPage() {
 
   const [pageIndex, setPageIndex] = useState(1);
+  const [showDeleted, setShowDeleted] = useState(false);
 
   const { data, isLoading, isError, refetch } = useTransactions({
-
     pageIndex,
-
     pageSize: PAGE_SIZE,
-
     sortBy: "date",
-
     sortDir: "desc",
-
+    isDeleted: showDeleted,
   });
 
 
@@ -149,11 +146,23 @@ export function TransactionsPage() {
       />
 
       <Card className={cn("brutal-card border-0 shadow-none")}>
-
-        <CardHeader className="pb-2">
-
+        <CardHeader className="pb-2 flex flex-row items-center justify-between">
           <CardTitle className="text-base">Giao dịch gần đây</CardTitle>
-
+          <div className="flex items-center space-x-2">
+            <input
+              type="checkbox"
+              id="showDeleted"
+              checked={showDeleted}
+              onChange={(e) => {
+                setShowDeleted(e.target.checked);
+                setPageIndex(1);
+              }}
+              className="h-4 w-4 rounded border-gray-300 text-neutral-900 focus:ring-neutral-900"
+            />
+            <label htmlFor="showDeleted" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+              Hiển thị giao dịch đã xoá
+            </label>
+          </div>
         </CardHeader>
 
         <CardContent className="space-y-3">
@@ -203,15 +212,11 @@ export function TransactionsPage() {
                   </p>
 
                   <p className="text-xs text-muted-foreground">
-
                     {new Date(item.transactionDate).toLocaleString("vi-VN")}
-
                     {item.type
-
                       ? ` · ${TRANSACTION_TYPE_LABELS[item.type as TransactionType] ?? item.type}`
-
                       : ""}
-
+                    {item.isDeleted && <span className="ml-2 text-red-600 font-semibold">(Đã xoá)</span>}
                   </p>
 
                 </div>

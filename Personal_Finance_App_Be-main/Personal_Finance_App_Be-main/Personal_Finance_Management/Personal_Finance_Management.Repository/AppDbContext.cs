@@ -254,6 +254,8 @@ public class AppDbContext : DbContext
         {
             builder.ToTable("financial_accounts");
 
+            builder.UseXminAsConcurrencyToken();
+
             builder.Property(f => f.Name)
                 .IsRequired()
                 .HasMaxLength(100);
@@ -360,6 +362,8 @@ public class AppDbContext : DbContext
         modelBuilder.Entity<Jar>(builder =>
         {
             builder.ToTable("jars");
+
+            builder.UseXminAsConcurrencyToken();
 
             builder.Property(j => j.Name)
                 .IsRequired()
