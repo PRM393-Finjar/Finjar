@@ -94,12 +94,18 @@ public class Service : IService
 
     public async Task<Response.LoginResponse> Login(Request.LoginRequest request)
     {
-        var email = request.Email.Trim().ToLowerInvariant();
+        if (request is null)
+        {
+            throw AppValidationException.BadRequest("Request body is required.", "body", "REQUIRED");
+        }
+
+        var email = ServiceTextHelper.NormalizeRequiredText(request.Email, "email", "Email is required.").ToLowerInvariant();
+        var password = ServiceTextHelper.NormalizeRequiredText(request.Password, "password", "Password is required.");
         var user = await _dbContext.Accounts
             .Include(u => u.Role)
             .FirstOrDefaultAsync(u => u.Email == email);
 
-        if (user is null || !BCrypt.Net.BCrypt.Verify(request.Password, user.PasswordHash))
+        if (user is null || !BCrypt.Net.BCrypt.Verify(password, user.PasswordHash))
         {
             throw new Exception("Invalid email or password.");
         }
