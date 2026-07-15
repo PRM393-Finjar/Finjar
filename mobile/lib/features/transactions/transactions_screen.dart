@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:dio/dio.dart';
+import 'package:go_router/go_router.dart';
 import 'package:finjar_mobile/core/theme/brutal_theme.dart';
 import 'package:finjar_mobile/core/network/api_client.dart';
 import 'package:finjar_mobile/core/network/api_endpoints.dart';
@@ -183,6 +184,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
     await _fetchTransactions();
     await Future.wait([_fetchAccounts(), _fetchJars()]);
     AppSettings().triggerDashboardRefresh();
+    AppSettings().triggerWalletRefresh();
   }
 
   Future<void> _updateTransaction(
@@ -193,6 +195,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
     await _fetchTransactions();
     await Future.wait([_fetchAccounts(), _fetchJars()]);
     AppSettings().triggerDashboardRefresh();
+    AppSettings().triggerWalletRefresh();
   }
 
   Future<void> _deleteTransaction(String id) async {
@@ -202,6 +205,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
       await _fetchTransactions();
       await Future.wait([_fetchAccounts(), _fetchJars()]);
       AppSettings().triggerDashboardRefresh();
+      AppSettings().triggerWalletRefresh();
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Xóa giao dịch thành công!')),
@@ -885,11 +889,15 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
       builder: (context, _) {
         return Scaffold(
           backgroundColor: BrutalColors.bg,
-          appBar: AppBar(
+           appBar: AppBar(
             backgroundColor: BrutalColors.cardBg,
             elevation: 0,
             title:
                 Text('Sổ giao dịch', style: BrutalStyles.titleStyle(size: 22)),
+            leading: IconButton(
+              icon: Icon(Icons.arrow_back, color: BrutalColors.ink),
+              onPressed: () => GoRouter.of(context).go('/dashboard'),
+            ),
             actions: [
               IconButton(
                 onPressed: _clearFilters,

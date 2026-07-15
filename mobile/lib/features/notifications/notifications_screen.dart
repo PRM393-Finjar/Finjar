@@ -29,8 +29,15 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     try {
       final response = await _apiClient.get('notifications');
       if (response.statusCode == 200) {
+        final data = response.data;
+        List<dynamic> parsed = [];
+        if (data is Map) {
+          parsed = data['items'] ?? data['Items'] ?? data['data'] ?? [];
+        } else if (data is List) {
+          parsed = data;
+        }
         setState(() {
-          _notifications = response.data ?? [];
+          _notifications = parsed;
         });
       }
     } catch (e) {
@@ -101,7 +108,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                                 children: [
                                   Expanded(
                                     child: Text(
-                                      notif['title'] ?? 'Thông báo',
+                                      notif['title'] ?? notif['Title'] ?? 'Thông báo',
                                       style: BrutalStyles.bodyStyle(
                                         size: 15,
                                         weight: isRead ? FontWeight.w700 : FontWeight.w900,
@@ -121,7 +128,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                               ),
                               const SizedBox(height: 6),
                               Text(
-                                notif['message'] ?? '',
+                                notif['message'] ?? notif['Message'] ?? notif['body'] ?? notif['Body'] ?? '',
                                 style: BrutalStyles.bodyStyle(
                                   size: 13,
                                   color: BrutalColors.ink,
@@ -131,7 +138,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                               const SizedBox(height: 10),
                               Text(
                                 DateFormat('dd/MM/yyyy HH:mm').format(
-                                  DateTime.tryParse(notif['createdAt'] ?? '') ?? DateTime.now(),
+                                  DateTime.tryParse(notif['createdAt'] ?? notif['CreatedAt'] ?? notif['occurredAt'] ?? notif['OccurredAt'] ?? '') ?? DateTime.now(),
                                 ),
                                 style: BrutalStyles.labelStyle(size: 11),
                               ),

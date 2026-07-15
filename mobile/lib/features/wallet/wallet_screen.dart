@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:finjar_mobile/core/theme/brutal_theme.dart';
 import 'package:finjar_mobile/core/network/api_client.dart';
 import 'package:intl/intl.dart';
@@ -30,12 +31,14 @@ class _WalletScreenState extends State<WalletScreen> with SingleTickerProviderSt
       if (mounted) setState(() {}); // Refresh FAB dynamically when tab switches
     });
     AppSettings().categoriesRefreshNotifier.addListener(_fetchCategories);
+    AppSettings().walletRefreshNotifier.addListener(_loadWalletData);
     _loadWalletData();
   }
 
   @override
   void dispose() {
     AppSettings().categoriesRefreshNotifier.removeListener(_fetchCategories);
+    AppSettings().walletRefreshNotifier.removeListener(_loadWalletData);
     _tabController.dispose();
     super.dispose();
   }
@@ -740,6 +743,10 @@ class _WalletScreenState extends State<WalletScreen> with SingleTickerProviderSt
             backgroundColor: BrutalColors.cardBg,
             elevation: 0,
             title: Text('Ví & Hũ Tài Chính 🎒', style: BrutalStyles.titleStyle(size: 22)),
+            leading: IconButton(
+              icon: Icon(Icons.arrow_back, color: BrutalColors.ink),
+              onPressed: () => GoRouter.of(context).go('/dashboard'),
+            ),
             bottom: PreferredSize(
               preferredSize: const Size.fromHeight(60),
               child: Padding(

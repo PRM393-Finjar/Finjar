@@ -162,7 +162,7 @@ class _RemindersScreenState extends State<RemindersScreen> {
   Future<void> _togglePaid(String id, bool currentStatus) async {
     try {
       await _apiClient.patch('reminders/$id', data: {
-        'status': !currentStatus ? 'Paid' : 'Unpaid',
+        'status': !currentStatus ? 'Completed' : 'Active',
       });
       _fetchReminders();
     } catch (e) {
@@ -458,7 +458,7 @@ class _RemindersScreenState extends State<RemindersScreen> {
                   itemBuilder: (context, index) {
                     final rem = _reminders[index];
                     final amount = (rem['amount'] ?? 0.0).toDouble();
-                    final isPaid = rem['status'] == 'Paid' || (rem['isPaid'] ?? false);
+                    final isPaid = rem['status'] == 'Completed' || rem['status'] == 'Paid' || (rem['isPaid'] ?? false);
                     final startDateStr = rem['nextDueDate'] ?? rem['NextDueDate'] ?? rem['startDate'] ?? rem['dueDate'] ?? '';
                     final dueDate = DateTime.tryParse(startDateStr) ?? DateTime.now();
 

@@ -168,6 +168,8 @@ class _AppShellState extends State<AppShell> {
         dashboardKey.currentState?.refresh();
       } else if (newIndex == 1) {
         AppSettings().triggerTransactionsRefresh();
+      } else if (newIndex == 2) {
+        AppSettings().triggerWalletRefresh();
       }
       setState(() {
         _currentIndex = newIndex;
@@ -189,6 +191,8 @@ class _AppShellState extends State<AppShell> {
       dashboardKey.currentState?.refresh();
     } else if (index == 1) {
       AppSettings().triggerTransactionsRefresh();
+    } else if (index == 2) {
+      AppSettings().triggerWalletRefresh();
     }
     GoRouter.of(context).go(_paths[index]);
   }
