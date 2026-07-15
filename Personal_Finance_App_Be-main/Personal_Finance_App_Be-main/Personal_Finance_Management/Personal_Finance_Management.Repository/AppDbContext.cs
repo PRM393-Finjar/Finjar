@@ -1012,4 +1012,35 @@ public class AppDbContext : DbContext
                 .HasDefaultValueSql("NOW()");
         });
     }
+
+    protected override void ConfigureConventions(ModelConfigurationBuilder configurationBuilder)
+    {
+        configurationBuilder
+            .Properties<DateTimeOffset>()
+            .HaveConversion<DateTimeOffsetToUtcConverter>();
+
+        configurationBuilder
+            .Properties<DateTimeOffset?>()
+            .HaveConversion<NullableDateTimeOffsetToUtcConverter>();
+    }
+}
+
+public class DateTimeOffsetToUtcConverter : Microsoft.EntityFrameworkCore.Storage.ValueConversion.ValueConverter<DateTimeOffset, DateTimeOffset>
+{
+    public DateTimeOffsetToUtcConverter()
+        : base(
+            d => d.ToUniversalTime(),
+            d => d)
+    {
+    }
+}
+
+public class NullableDateTimeOffsetToUtcConverter : Microsoft.EntityFrameworkCore.Storage.ValueConversion.ValueConverter<DateTimeOffset?, DateTimeOffset?>
+{
+    public NullableDateTimeOffsetToUtcConverter()
+        : base(
+            d => d.HasValue ? d.Value.ToUniversalTime() : d,
+            d => d)
+    {
+    }
 }

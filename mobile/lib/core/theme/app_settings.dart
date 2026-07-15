@@ -17,6 +17,7 @@ class AppSettings extends ChangeNotifier {
   final ChangeNotifier dashboardRefreshNotifier = ChangeNotifier();
   final ChangeNotifier categoriesRefreshNotifier = ChangeNotifier();
   final ChangeNotifier transactionsRefreshNotifier = ChangeNotifier();
+  final ChangeNotifier walletRefreshNotifier = ChangeNotifier();
 
   void triggerDashboardRefresh() {
     dashboardRefreshNotifier.notifyListeners();
@@ -28,6 +29,10 @@ class AppSettings extends ChangeNotifier {
 
   void triggerTransactionsRefresh() {
     transactionsRefreshNotifier.notifyListeners();
+  }
+
+  void triggerWalletRefresh() {
+    walletRefreshNotifier.notifyListeners();
   }
 
   String get currency => _currency;

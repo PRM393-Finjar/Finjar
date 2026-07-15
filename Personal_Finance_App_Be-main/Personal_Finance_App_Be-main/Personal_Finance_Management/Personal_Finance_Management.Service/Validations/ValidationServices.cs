@@ -235,6 +235,14 @@ public class ValidationServices : IServices
 
         if (request.Status is not null)
         {
+            if (string.Equals(request.Status, "Paid", StringComparison.OrdinalIgnoreCase))
+            {
+                request.Status = "Completed";
+            }
+            else if (string.Equals(request.Status, "Unpaid", StringComparison.OrdinalIgnoreCase))
+            {
+                request.Status = "Active";
+            }
             ValidateEnumValue<ReminderStatus>(request.Status, "status", "INVALID_REMINDER_STATUS", required: true);
         }
 

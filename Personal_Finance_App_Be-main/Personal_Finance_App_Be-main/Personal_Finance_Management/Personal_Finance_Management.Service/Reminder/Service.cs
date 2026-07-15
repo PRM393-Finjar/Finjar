@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using Personal_Finance_Management.Repository;
 using Personal_Finance_Management.Repository.Enum;
@@ -31,7 +31,7 @@ public class Service : IService
         var userIdGuid = GetCurrentUserId();
         var remindersFromDb = await _appDbContext.Reminders
             .AsNoTracking()
-            .Where(r => r.UserId == userIdGuid && r.Status == "Active")
+            .Where(r => r.UserId == userIdGuid && (r.Status == "Active" || r.Status == "Completed"))
             .OrderBy(r => r.CreatedAt)
             .ToListAsync();
         

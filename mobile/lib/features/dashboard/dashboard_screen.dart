@@ -21,6 +21,7 @@ class DashboardScreenState extends State<DashboardScreen> {
   double _monthlyIncome = 0.0;
   double _monthlyExpenses = 0.0;
   double _netChange = 0.0;
+  int _unreadCount = 0;
 
   List<dynamic> _financialAccounts = [];
   List<dynamic> _jarSummary = [];
@@ -51,10 +52,20 @@ class DashboardScreenState extends State<DashboardScreen> {
 
     try {
       final response = await _apiClient.get('dashboard');
+      final notifResponse = await _apiClient.get('notifications?pageSize=1');
       if (!mounted) return;
       if (response.statusCode == 200) {
         final root = _unwrapPayload(response.data);
         final summary = _asMap(_value(root, 'balanceSummary'));
+        
+        int unread = 0;
+        if (notifResponse.statusCode == 200) {
+          final notifData = notifResponse.data;
+          if (notifData is Map) {
+            unread = notifData['unreadCount'] ?? notifData['UnreadCount'] ?? 0;
+          }
+        }
+
         setState(() {
           _totalBalance = _asDouble(_value(summary, 'totalBalance'));
           _allocatedBalance = _asDouble(_value(summary, 'allocatedBalance'));
@@ -68,6 +79,7 @@ class DashboardScreenState extends State<DashboardScreen> {
           _categoryBreakdown = _asList(_value(root, 'categoryBreakdown'));
           _recentTransactions = _asList(_value(root, 'recentTransactions'));
           _goalProgress = _asList(_value(root, 'goalProgress'));
+          _unreadCount = unread;
         });
       }
     } catch (_) {
@@ -84,6 +96,7 @@ class DashboardScreenState extends State<DashboardScreen> {
         _categoryBreakdown = [];
         _recentTransactions = [];
         _goalProgress = [];
+        _unreadCount = 0;
       });
     } finally {
       if (mounted) setState(() => _isLoading = false);
@@ -175,12 +188,46 @@ class DashboardScreenState extends State<DashboardScreen> {
             elevation: 0,
             title: Text('Finjar', style: BrutalStyles.titleStyle(size: 24)),
             actions: [
-              IconButton(
-                icon: Icon(
-                  Icons.notifications_active_outlined,
-                  color: BrutalColors.ink,
-                ),
-                onPressed: () => context.push('/notifications'),
+              Stack(
+                alignment: Alignment.center,
+                children: [
+                  IconButton(
+                    icon: Icon(
+                      _unreadCount > 0 ? Icons.notifications_active : Icons.notifications_active_outlined,
+                      color: BrutalColors.ink,
+                    ),
+                    onPressed: () async {
+                      await context.push('/notifications');
+                      _fetchDashboardData();
+                    },
+                  ),
+                  if (_unreadCount > 0)
+                    Positioned(
+                      right: 6,
+                      top: 6,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                        decoration: BoxDecoration(
+                          color: BrutalColors.destructive,
+                          border: Border.all(color: BrutalColors.ink, width: 1.5),
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                        constraints: const BoxConstraints(
+                          minWidth: 16,
+                          minHeight: 16,
+                        ),
+                        child: Text(
+                          _unreadCount.toString(),
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 9,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
               ),
               const SizedBox(width: 8),
             ],

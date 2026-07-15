@@ -363,12 +363,55 @@ public class Service : IService
                     fromJar.Balance = fromJar.Balance - transaction.TransactionsAmount;
                     finnacialAccount.CurrentBalance = finnacialAccount.CurrentBalance + transaction.TransactionsAmount;
                 }
-                else
-                {
-                    throw AppValidationException.BadRequest("Insufficient source jar balance.", "fromJarId", "INSUFFICIENT_JAR_BALANCE");
-                }
-                
             }
+        }
+
+        // Add Notification for transfers
+        string? transferNotificationBody = null;
+        if (transaction.Type == "Transfer")
+        {
+            if (transaction.FromJarId != null && transaction.ToJarId != null && transaction.FinancialAccountId == null)
+            {
+                var fromJar = _dbContext.Jars.FirstOrDefault(x => x.Id == transaction.FromJarId);
+                var toJar = _dbContext.Jars.FirstOrDefault(x => x.Id == transaction.ToJarId);
+                if (fromJar != null && toJar != null)
+                {
+                    transferNotificationBody = $"Bạn đã chuyển {transaction.TransactionsAmount:N0}đ từ hũ {fromJar.Name} sang hũ {toJar.Name}.";
+                }
+            }
+            else if (transaction.FromJarId == null && transaction.ToJarId != null && transaction.FinancialAccountId != null)
+            {
+                var toJar = _dbContext.Jars.FirstOrDefault(x => x.Id == transaction.ToJarId);
+                var finnacialAccount = _dbContext.FinancialAccounts.FirstOrDefault(x => x.Id == transaction.FinancialAccountId);
+                if (toJar != null && finnacialAccount != null)
+                {
+                    transferNotificationBody = $"Bạn đã chuyển {transaction.TransactionsAmount:N0}đ từ tài khoản {finnacialAccount.Name} sang hũ {toJar.Name}.";
+                }
+            }
+            else if (transaction.FromJarId != null && transaction.ToJarId == null && transaction.FinancialAccountId != null)
+            {
+                var fromJar = _dbContext.Jars.FirstOrDefault(x => x.Id == transaction.FromJarId);
+                var finnacialAccount = _dbContext.FinancialAccounts.FirstOrDefault(x => x.Id == transaction.FinancialAccountId);
+                if (fromJar != null && finnacialAccount != null)
+                {
+                    transferNotificationBody = $"Bạn đã chuyển {transaction.TransactionsAmount:N0}đ từ hũ {fromJar.Name} sang tài khoản {finnacialAccount.Name}.";
+                }
+            }
+        }
+
+        if (!string.IsNullOrEmpty(transferNotificationBody))
+        {
+            var notification = new Notification
+            {
+                UserId = userIdGuid,
+                Type = "System",
+                Title = "Chuyển tiền thành công 💸",
+                Body = transferNotificationBody,
+                IsRead = false,
+                CreatedAt = DateTimeOffset.UtcNow,
+                MetadataJson = $"{{\"transactionId\": \"{transaction.Id}\"}}"
+            };
+            _dbContext.Notifications.Add(notification);
         }
         
         await _dbContext.SaveChangesAsync();

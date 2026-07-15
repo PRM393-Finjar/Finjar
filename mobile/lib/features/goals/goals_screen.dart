@@ -16,6 +16,7 @@ class _GoalsScreenState extends State<GoalsScreen> {
   final _apiClient = ApiClient();
   bool _isLoading = false;
   List<dynamic> _goals = [];
+  List<dynamic> _jars = [];
 
   final _titleController = TextEditingController();
   final _targetController = TextEditingController();
@@ -24,6 +25,7 @@ class _GoalsScreenState extends State<GoalsScreen> {
   void initState() {
     super.initState();
     _fetchGoals();
+    _fetchJars();
   }
 
   @override
@@ -63,7 +65,27 @@ class _GoalsScreenState extends State<GoalsScreen> {
     }
   }
 
-  Future<void> _addGoal() async {
+  Future<void> _fetchJars() async {
+    try {
+      final response = await _apiClient.get('jars');
+      if (response.statusCode == 200) {
+        final data = response.data;
+        List<dynamic> parsedJars = [];
+        if (data is Map) {
+          parsedJars = data['data'] ?? data['Data'] ?? [];
+        } else if (data is List) {
+          parsedJars = data;
+        }
+        setState(() {
+          _jars = parsedJars;
+        });
+      }
+    } catch (e) {
+      // ignore
+    }
+  }
+
+  Future<void> _addGoal(String? linkedJarId) async {
     final title = _titleController.text.trim();
     final target = _targetController.rawValue;
 
@@ -73,6 +95,7 @@ class _GoalsScreenState extends State<GoalsScreen> {
       final response = await _apiClient.post('goals', data: {
         'title': title,
         'targetAmount': target,
+        'linkedJarId': linkedJarId,
         'dueDate': DateTime.now().add(const Duration(days: 30)).toIso8601String(),
         'note': 'Tạo từ ứng dụng di động',
       });
@@ -158,6 +181,9 @@ class _GoalsScreenState extends State<GoalsScreen> {
     final editTargetController = TextEditingController(
       text: initialTargetAmt.toInt().toString(),
     );
+    String? selectedJarId = _jars.any((j) => j['id'] == (goal['linkedJarId'] ?? goal['LinkedJarId']))
+        ? (goal['linkedJarId'] ?? goal['LinkedJarId'])
+        : (_jars.isNotEmpty ? _jars.first['id'] : null);
 
     showModalBottomSheet(
       context: context,
@@ -167,62 +193,103 @@ class _GoalsScreenState extends State<GoalsScreen> {
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
       builder: (context) {
-        return Padding(
-          padding: EdgeInsets.only(
-            left: 20,
-            right: 20,
-            top: 24,
-            bottom: MediaQuery.of(context).viewInsets.bottom + 24,
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Text('Chỉnh sửa mục tiêu 🎯', style: BrutalStyles.titleStyle(size: 20)),
-              const SizedBox(height: 16),
-              BrutalInput(
-                label: 'Tên mục tiêu',
-                hint: 'Ví dụ: Mua xe máy, Quỹ tiết kiệm...',
-                controller: editTitleController,
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            return Padding(
+              padding: EdgeInsets.only(
+                left: 20,
+                right: 20,
+                top: 24,
+                bottom: MediaQuery.of(context).viewInsets.bottom + 24,
               ),
-              const SizedBox(height: 16),
-              BrutalCurrencyInput(
-                label: 'Số tiền cần đạt được',
-                hint: '10.000.000',
-                controller: editTargetController,
-              ),
-              const SizedBox(height: 24),
-              BrutalButton(
-                text: 'CẬP NHẬT',
-                color: BrutalColors.green,
-                onTap: () async {
-                  final title = editTitleController.text.trim();
-                  final target = editTargetController.rawValue;
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text('Chỉnh sửa mục tiêu 🎯', style: BrutalStyles.titleStyle(size: 20)),
+                  const SizedBox(height: 16),
+                  BrutalInput(
+                    label: 'Tên mục tiêu',
+                    hint: 'Ví dụ: Mua xe máy, Quỹ tiết kiệm...',
+                    controller: editTitleController,
+                  ),
+                  const SizedBox(height: 16),
+                  BrutalCurrencyInput(
+                    label: 'Số tiền cần đạt được',
+                    hint: '10.000.000',
+                    controller: editTargetController,
+                  ),
+                  const SizedBox(height: 16),
+                  if (_jars.isNotEmpty) ...[
+                    Text('Liên kết với hũ tài chính', style: BrutalStyles.bodyStyle(size: 14, weight: FontWeight.w700)),
+                    const SizedBox(height: 6),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      decoration: BoxDecoration(
+                        color: BrutalColors.cardBg,
+                        border: BrutalStyles.border,
+                        borderRadius: BorderRadius.circular(12),
+                        boxShadow: [BrutalStyles.shadowSm],
+                      ),
+                      child: DropdownButtonHideUnderline(
+                        child: DropdownButton<String>(
+                          value: selectedJarId,
+                          isExpanded: true,
+                          style: BrutalStyles.bodyStyle(size: 14),
+                          onChanged: (val) {
+                            if (val != null) {
+                              setModalState(() {
+                                selectedJarId = val;
+                              });
+                            }
+                          },
+                          items: _jars.map<DropdownMenuItem<String>>((jar) {
+                            return DropdownMenuItem<String>(
+                              value: jar['id'],
+                              child: Text(jar['name'] ?? 'Hũ tài chính'),
+                            );
+                          }).toList(),
+                        ),
+                      ),
+                    ),
+                  ],
+                  const SizedBox(height: 24),
+                  BrutalButton(
+                    text: 'CẬP NHẬT',
+                    color: BrutalColors.green,
+                    onTap: () async {
+                      final title = editTitleController.text.trim();
+                      final target = editTargetController.rawValue;
 
-                  if (title.isNotEmpty && target > 0) {
-                    try {
-                      await _apiClient.patch('goals/${goal['id']}', data: {
-                        'title': title,
-                        'targetAmount': target,
-                      });
-                      _fetchGoals();
-                      if (mounted) Navigator.pop(context);
-                    } catch (e) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Không thể cập nhật mục tiêu.')),
-                      );
-                    }
-                  }
-                },
+                      if (title.isNotEmpty && target > 0) {
+                        try {
+                          await _apiClient.patch('goals/${goal['id']}', data: {
+                            'title': title,
+                            'targetAmount': target,
+                            'linkedJarId': selectedJarId,
+                          });
+                          _fetchGoals();
+                          if (mounted) Navigator.pop(context);
+                        } catch (e) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('Không thể cập nhật mục tiêu.')),
+                          );
+                        }
+                      }
+                    },
+                  ),
+                ],
               ),
-            ],
-          ),
+            );
+          }
         );
       },
     );
   }
 
   void _showAddGoalDialog() {
+    String? selectedJarId = _jars.isNotEmpty ? _jars.first['id'] : null;
+
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -231,38 +298,76 @@ class _GoalsScreenState extends State<GoalsScreen> {
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
       builder: (context) {
-        return Padding(
-          padding: EdgeInsets.only(
-            left: 20,
-            right: 20,
-            top: 24,
-            bottom: MediaQuery.of(context).viewInsets.bottom + 24,
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Text('Đặt mục tiêu tích lũy mới 🎯', style: BrutalStyles.titleStyle(size: 20)),
-              const SizedBox(height: 16),
-              BrutalInput(
-                label: 'Tên mục tiêu',
-                hint: 'Ví dụ: Mua xe máy, Quỹ tiết kiệm...',
-                controller: _titleController,
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            return Padding(
+              padding: EdgeInsets.only(
+                left: 20,
+                right: 20,
+                top: 24,
+                bottom: MediaQuery.of(context).viewInsets.bottom + 24,
               ),
-              const SizedBox(height: 16),
-              BrutalCurrencyInput(
-                label: 'Số tiền cần đạt được',
-                hint: '10.000.000',
-                controller: _targetController,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text('Đặt mục tiêu tích lũy mới 🎯', style: BrutalStyles.titleStyle(size: 20)),
+                  const SizedBox(height: 16),
+                  BrutalInput(
+                    label: 'Tên mục tiêu',
+                    hint: 'Ví dụ: Mua xe máy, Quỹ tiết kiệm...',
+                    controller: _titleController,
+                  ),
+                  const SizedBox(height: 16),
+                  BrutalCurrencyInput(
+                    label: 'Số tiền cần đạt được',
+                    hint: '10.000.000',
+                    controller: _targetController,
+                  ),
+                  const SizedBox(height: 16),
+                  if (_jars.isNotEmpty) ...[
+                    Text('Liên kết với hũ tài chính', style: BrutalStyles.bodyStyle(size: 14, weight: FontWeight.w700)),
+                    const SizedBox(height: 6),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      decoration: BoxDecoration(
+                        color: BrutalColors.cardBg,
+                        border: BrutalStyles.border,
+                        borderRadius: BorderRadius.circular(12),
+                        boxShadow: [BrutalStyles.shadowSm],
+                      ),
+                      child: DropdownButtonHideUnderline(
+                        child: DropdownButton<String>(
+                          value: selectedJarId,
+                          isExpanded: true,
+                          style: BrutalStyles.bodyStyle(size: 14),
+                          onChanged: (val) {
+                            if (val != null) {
+                              setModalState(() {
+                                selectedJarId = val;
+                              });
+                            }
+                          },
+                          items: _jars.map<DropdownMenuItem<String>>((jar) {
+                            return DropdownMenuItem<String>(
+                              value: jar['id'],
+                              child: Text(jar['name'] ?? 'Hũ tài chính'),
+                            );
+                          }).toList(),
+                        ),
+                      ),
+                    ),
+                  ],
+                  const SizedBox(height: 24),
+                  BrutalButton(
+                    text: 'TẠO MỤC TIÊU',
+                    color: BrutalColors.green,
+                    onTap: () => _addGoal(selectedJarId),
+                  ),
+                ],
               ),
-              const SizedBox(height: 24),
-              BrutalButton(
-                text: 'TẠO MỤC TIÊU',
-                color: BrutalColors.green,
-                onTap: _addGoal,
-              ),
-            ],
-          ),
+            );
+          }
         );
       },
     );
@@ -331,9 +436,25 @@ class _GoalsScreenState extends State<GoalsScreen> {
                               mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
                                 Expanded(
-                                  child: Text(
-                                    goal['title'] ?? 'Mục tiêu',
-                                    style: BrutalStyles.titleStyle(size: 16),
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        goal['title'] ?? 'Mục tiêu',
+                                        style: BrutalStyles.titleStyle(size: 16),
+                                      ),
+                                      if (goal['linkedJarName'] != null || goal['LinkedJarName'] != null) ...[
+                                        const SizedBox(height: 4),
+                                        Text(
+                                          'Hũ liên kết: ${goal['linkedJarName'] ?? goal['LinkedJarName']}',
+                                          style: BrutalStyles.bodyStyle(
+                                            size: 12, 
+                                            color: BrutalColors.grey,
+                                            weight: FontWeight.w600,
+                                          ),
+                                        ),
+                                      ],
+                                    ],
                                   ),
                                 ),
                                 Row(

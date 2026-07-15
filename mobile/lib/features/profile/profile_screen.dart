@@ -221,55 +221,57 @@ class _ProfileScreenState extends State<ProfileScreen> {
             left: 20, right: 20, top: 24,
             bottom: MediaQuery.of(ctx).viewInsets.bottom + 24,
           ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Text('Đơn vị tiền tệ 💱', style: BrutalStyles.titleStyle(size: 20)),
-              const SizedBox(height: 16),
-              ..._currencies.map((c) => GestureDetector(
-                onTap: () => setModalState(() => selected = c),
-                child: Container(
-                  margin: const EdgeInsets.only(bottom: 8),
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                  decoration: BoxDecoration(
-                    color: selected == c ? BrutalColors.green : BrutalColors.cardBg,
-                    border: Border.all(
-                      color: selected == c ? BrutalColors.ink : Colors.grey.shade300,
-                      width: selected == c ? 2 : 1,
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text('Đơn vị tiền tệ 💱', style: BrutalStyles.titleStyle(size: 20)),
+                const SizedBox(height: 16),
+                ..._currencies.map((c) => GestureDetector(
+                  onTap: () => setModalState(() => selected = c),
+                  child: Container(
+                    margin: const EdgeInsets.only(bottom: 8),
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                    decoration: BoxDecoration(
+                      color: selected == c ? BrutalColors.green : BrutalColors.cardBg,
+                      border: Border.all(
+                        color: selected == c ? BrutalColors.ink : Colors.grey.shade300,
+                        width: selected == c ? 2 : 1,
+                      ),
+                      borderRadius: BorderRadius.circular(12),
                     ),
-                    borderRadius: BorderRadius.circular(12),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(c, style: BrutalStyles.bodyStyle(size: 16, weight: FontWeight.w700)),
+                        if (selected == c) Icon(Icons.check_circle, color: BrutalColors.ink, size: 20),
+                      ],
+                    ),
                   ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(c, style: BrutalStyles.bodyStyle(size: 16, weight: FontWeight.w700)),
-                      if (selected == c) Icon(Icons.check_circle, color: BrutalColors.ink, size: 20),
-                    ],
-                  ),
+                )),
+                const SizedBox(height: 16),
+                BrutalButton(
+                  text: 'LƯU TIỀN TỆ',
+                  color: BrutalColors.purple,
+                  onTap: () async {
+                    try {
+                      await _apiClient.patch('user/me', data: {'preferredCurrency': selected});
+                      setState(() => _currency = selected);
+                      AppSettings().setCurrency(selected);
+                      if (mounted) Navigator.pop(ctx);
+                      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text('Đã đổi tiền tệ sang $selected!')),
+                      );
+                    } catch (e) {
+                      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Không thể đổi đơn vị tiền tệ.')),
+                      );
+                    }
+                  },
                 ),
-              )),
-              const SizedBox(height: 16),
-              BrutalButton(
-                text: 'LƯU TIỀN TỆ',
-                color: BrutalColors.purple,
-                onTap: () async {
-                  try {
-                    await _apiClient.patch('user/me', data: {'preferredCurrency': selected});
-                    setState(() => _currency = selected);
-                    AppSettings().setCurrency(selected);
-                    if (mounted) Navigator.pop(ctx);
-                    if (mounted) ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('Đã đổi tiền tệ sang $selected!')),
-                    );
-                  } catch (e) {
-                    if (mounted) ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Không thể đổi đơn vị tiền tệ.')),
-                    );
-                  }
-                },
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
@@ -297,74 +299,76 @@ class _ProfileScreenState extends State<ProfileScreen> {
             left: 20, right: 20, top: 24,
             bottom: MediaQuery.of(ctx).viewInsets.bottom + 24,
           ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Text('Đổi mật khẩu 🔐', style: BrutalStyles.titleStyle(size: 20)),
-              const SizedBox(height: 16),
-              BrutalInput(
-                label: 'Mật khẩu hiện tại',
-                hint: '••••••••',
-                controller: currentCtrl,
-                obscureText: !showCurrent,
-                suffixIcon: IconButton(
-                  icon: Icon(showCurrent ? Icons.visibility_off : Icons.visibility, color: BrutalColors.grey),
-                  onPressed: () => setModalState(() => showCurrent = !showCurrent),
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text('Đổi mật khẩu 🔐', style: BrutalStyles.titleStyle(size: 20)),
+                const SizedBox(height: 16),
+                BrutalInput(
+                  label: 'Mật khẩu hiện tại',
+                  hint: '••••••••',
+                  controller: currentCtrl,
+                  obscureText: !showCurrent,
+                  suffixIcon: IconButton(
+                    icon: Icon(showCurrent ? Icons.visibility_off : Icons.visibility, color: BrutalColors.grey),
+                    onPressed: () => setModalState(() => showCurrent = !showCurrent),
+                  ),
                 ),
-              ),
-              const SizedBox(height: 12),
-              BrutalInput(
-                label: 'Mật khẩu mới (tối thiểu 6 ký tự)',
-                hint: '••••••••',
-                controller: newCtrl,
-                obscureText: !showNew,
-                suffixIcon: IconButton(
-                  icon: Icon(showNew ? Icons.visibility_off : Icons.visibility, color: BrutalColors.grey),
-                  onPressed: () => setModalState(() => showNew = !showNew),
+                const SizedBox(height: 12),
+                BrutalInput(
+                  label: 'Mật khẩu mới (tối thiểu 6 ký tự)',
+                  hint: '••••••••',
+                  controller: newCtrl,
+                  obscureText: !showNew,
+                  suffixIcon: IconButton(
+                    icon: Icon(showNew ? Icons.visibility_off : Icons.visibility, color: BrutalColors.grey),
+                    onPressed: () => setModalState(() => showNew = !showNew),
+                  ),
                 ),
-              ),
-              const SizedBox(height: 12),
-              BrutalInput(
-                label: 'Xác nhận mật khẩu mới',
-                hint: '••••••••',
-                controller: confirmCtrl,
-                obscureText: true,
-              ),
-              const SizedBox(height: 24),
-              BrutalButton(
-                text: 'ĐỔI MẬT KHẨU',
-                color: BrutalColors.green,
-                onTap: () async {
-                  if (newCtrl.text != confirmCtrl.text) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Mật khẩu xác nhận không khớp!')),
-                    );
-                    return;
-                  }
-                  if (newCtrl.text.length < 6) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Mật khẩu mới phải có ít nhất 6 ký tự!')),
-                    );
-                    return;
-                  }
-                  try {
-                    await _apiClient.patch('user/me/password', data: {
-                      'currentPassword': currentCtrl.text,
-                      'newPassword': newCtrl.text,
-                    });
-                    if (mounted) Navigator.pop(ctx);
-                    if (mounted) ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Đổi mật khẩu thành công! 🎉')),
-                    );
-                  } catch (e) {
-                    if (mounted) ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Mật khẩu hiện tại không đúng hoặc có lỗi xảy ra.')),
-                    );
-                  }
-                },
-              ),
-            ],
+                const SizedBox(height: 12),
+                BrutalInput(
+                  label: 'Xác nhận mật khẩu mới',
+                  hint: '••••••••',
+                  controller: confirmCtrl,
+                  obscureText: true,
+                ),
+                const SizedBox(height: 24),
+                BrutalButton(
+                  text: 'ĐỔI MẬT KHẨU',
+                  color: BrutalColors.green,
+                  onTap: () async {
+                    if (newCtrl.text != confirmCtrl.text) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Mật khẩu xác nhận không khớp!')),
+                      );
+                      return;
+                    }
+                    if (newCtrl.text.length < 6) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Mật khẩu mới phải có ít nhất 6 ký tự!')),
+                      );
+                      return;
+                    }
+                    try {
+                      await _apiClient.patch('user/me/password', data: {
+                        'currentPassword': currentCtrl.text,
+                        'newPassword': newCtrl.text,
+                      });
+                      if (mounted) Navigator.pop(ctx);
+                      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Đổi mật khẩu thành công! 🎉')),
+                      );
+                    } catch (e) {
+                      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Mật khẩu hiện tại không đúng hoặc có lỗi xảy ra.')),
+                      );
+                    }
+                  },
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -496,6 +500,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
         backgroundColor: BrutalColors.cardBg,
         elevation: 0,
         title: Text('Cá Nhân 👤', style: BrutalStyles.titleStyle(size: 22)),
+        leading: IconButton(
+          icon: Icon(Icons.arrow_back, color: BrutalColors.ink),
+          onPressed: () => GoRouter.of(context).go('/dashboard'),
+        ),
         shape: Border(bottom: BorderSide(color: BrutalColors.ink, width: 3)),
         actions: [
           IconButton(

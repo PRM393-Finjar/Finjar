@@ -105,7 +105,22 @@ public class Service : IService
     {
         var userId = GetCurrentUserId();
         
-        var linkedJar = _appDbContext.Jars.FirstOrDefault(x => x.Id == request.LinkedJarId);
+        var linkedJarId = request.LinkedJarId;
+        if (!linkedJarId.HasValue || linkedJarId == Guid.Empty)
+        {
+            var activeJars = await _appDbContext.Jars
+                .Where(x => x.UserId == userId && x.Status == "Active")
+                .ToListAsync();
+            var savingsJar = activeJars.FirstOrDefault(x => 
+                x.Name.ToLower().Contains("saving") || 
+                x.Name.Contains("tiết kiệm") || 
+                x.Name.Contains("tích lũy"));
+            linkedJarId = savingsJar?.Id ?? activeJars.FirstOrDefault()?.Id;
+        }
+
+        var linkedJar = linkedJarId.HasValue 
+            ? await _appDbContext.Jars.FindAsync(linkedJarId.Value) 
+            : null;
 
         var goal = new Goal
         {
@@ -116,7 +131,7 @@ public class Service : IService
             Status = "Active",          
             Note = request.Note,
             UserId = userId,
-            LinkedJarId = request.LinkedJarId
+            LinkedJarId = linkedJarId
         };
 
         _appDbContext.Goals.Add(goal);
