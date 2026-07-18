@@ -36,33 +36,41 @@ public class Service : IService
             .Where(l => l.UserId == userId && l.IsActive)
             .ToListAsync();
 
-        var jarIds = limits
-            .Where(l => l.JarId.HasValue)
-            .Select(l => l.JarId!.Value)
-            .Distinct()
-            .ToList();
-
-        var spentByJarId = jarIds.Count == 0
+        var jarLimits = limits.Where(l => l.JarId.HasValue).Select(l => l.Id).ToList();
+        var spentByJarLimitId = jarLimits.Count == 0
             ? new Dictionary<Guid, decimal>()
             : await _appDbContext.SpendingLimits
-                .Where(l => l.UserId == userId
-                            && l.IsActive
-                            && l.JarId.HasValue
-                            && jarIds.Contains(l.JarId.Value))
+                .Where(l => jarLimits.Contains(l.Id))
                 .Select(l => new
                 {
-                    JarId = l.JarId!.Value,
+                    LimitId = l.Id,
                     CurrentSpent = _appDbContext.Transactions
                         .Where(t => t.UserId == userId
                                     && !t.IsDeleted
                                     && t.Type == "Expense"
                                     && t.FromJarId == l.JarId
-                                    && t.ToJarId == null
-                                    && t.FinancialAccountId == null
                                     && t.CreatedAt >= l.ResetAt)
                         .Sum(t => (decimal?)t.TransactionsAmount) ?? 0m
                 })
-                .ToDictionaryAsync(x => x.JarId, x => x.CurrentSpent);
+                .ToDictionaryAsync(x => x.LimitId, x => x.CurrentSpent);
+
+        var categoryLimits = limits.Where(l => l.CategoryId.HasValue).Select(l => l.Id).ToList();
+        var spentByCategoryLimitId = categoryLimits.Count == 0
+            ? new Dictionary<Guid, decimal>()
+            : await _appDbContext.SpendingLimits
+                .Where(l => categoryLimits.Contains(l.Id))
+                .Select(l => new
+                {
+                    LimitId = l.Id,
+                    CurrentSpent = _appDbContext.Transactions
+                        .Where(t => t.UserId == userId
+                                    && !t.IsDeleted
+                                    && t.Type == "Expense"
+                                    && t.CategoryId == l.CategoryId
+                                    && t.CreatedAt >= l.ResetAt)
+                        .Sum(t => (decimal?)t.TransactionsAmount) ?? 0m
+                })
+                .ToDictionaryAsync(x => x.LimitId, x => x.CurrentSpent);
 
         var items = new List<Response.GetLimitItem>();
 
@@ -80,7 +88,7 @@ public class Service : IService
                 targetName = limit.Jar.Name;
                 targetType = "Jar";
 
-                currentSpent = spentByJarId.TryGetValue(limit.JarId.Value, out var spent)
+                currentSpent = spentByJarLimitId.TryGetValue(limit.Id, out var spent)
                     ? spent
                     : 0m;
             }
@@ -89,6 +97,10 @@ public class Service : IService
                 targetType = "Category";
                 targetId = limit.Category.Id;
                 targetName = limit.Category.Name;
+
+                currentSpent = spentByCategoryLimitId.TryGetValue(limit.Id, out var spent)
+                    ? spent
+                    : 0m;
             }
             var item = new Response.GetLimitItem
             {

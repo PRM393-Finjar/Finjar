@@ -339,13 +339,13 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
               payload['date'] = selectedDate.toIso8601String();
 
               if (type == 'Expense') {
-                if (fromJarId == null || fromJarId!.isEmpty) {
-                  setModalState(() => formError = 'Chọn hũ nguồn để chi.');
+                if (selectedAccountId == null || selectedAccountId!.isEmpty) {
+                  setModalState(() => formError = 'Chọn tài khoản để chi.');
                   return;
                 }
-                payload['fromJarId'] = fromJarId;
+                payload['financialAccountId'] = selectedAccountId;
+                payload['fromJarId'] = null;
                 payload['toJarId'] = null;
-                payload['financialAccountId'] = null;
               } else if (type == 'Income') {
                 if (selectedAccountId == null || selectedAccountId!.isEmpty) {
                   setModalState(
@@ -473,8 +473,20 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                         setModalState(() => selectedCategoryId = value);
                       },
                     ),
-                    if (type == 'Expense' ||
-                        (type == 'Transfer' && transferMode != 'accountToJar'))
+                    if (type == 'Expense')
+                      Padding(
+                        padding: const EdgeInsets.only(top: 12),
+                        child: _buildDropdown(
+                          label: 'Tài khoản',
+                          value: selectedAccountId,
+                          items: _manualAccounts,
+                          emptyLabel: 'Chọn tài khoản',
+                          onChanged: (value) {
+                            setModalState(() => selectedAccountId = value);
+                          },
+                        ),
+                      ),
+                    if (type == 'Transfer' && transferMode != 'accountToJar')
                       Padding(
                         padding: const EdgeInsets.only(top: 12),
                         child: _buildDropdown(
