@@ -425,6 +425,10 @@ public class Service : IService
         {
             await CheckLimit(transaction.FromJarId.Value);
         }
+        if (transaction.CategoryId != null)
+        {
+            await CheckCategoryLimit(transaction.CategoryId.Value, userIdGuid);
+        }
 
         var result = new Response.CreateTransactionResponse
         {
@@ -545,7 +549,11 @@ public class Service : IService
         }
         if (transaction.FromJarId != null)
         {
-            await CheckAndCompleteGoals(transaction.FromJarId.Value);
+            await CheckLimit(transaction.FromJarId.Value);
+        }
+        if (transaction.CategoryId != null)
+        {
+            await CheckCategoryLimit(transaction.CategoryId.Value, userIdGuid);
         }
 
         var result = new Response.UpdateTransactionResponse
@@ -744,8 +752,8 @@ public class Service : IService
 
         foreach (var item in activeLimit)
         {
-            var currentSpent = await GetCurrentSpentByJar(jarId, item.UserId);
-            var alertThreshold = (item.AlertAtPercentage * 100) / item.LimitAmount;
+            var currentSpent = await GetCurrentSpentByJar(jarId, item.UserId, item.ResetAt);
+            var alertThreshold = (item.AlertAtPercentage * item.LimitAmount) / 100;
 
             // Business rule:
             // - Alert threshold only creates warning notification and keeps limit active.
@@ -759,7 +767,7 @@ public class Service : IService
                     UserId = item.UserId,
                     Type = "SpendingAlert",
                     Title = "Thông báo vượt ngưỡng!",
-                    Body = $"Xin thông báo! bạn đã chạm ngưỡng {item.LimitAmount}đ giới hạn chi tiêu ở hũ {jar.Name}",
+                    Body = $"Xin thông báo! bạn đã chạm ngưỡng {item.LimitAmount:N0}đ giới hạn chi tiêu ở hũ {jar.Name}",
                     IsRead = false,
                     CreatedAt = DateTimeOffset.UtcNow,
                     MetadataJson = $"{{\"limitId\": \"{item.Id}\", \"jarId\": \"{jar.Id}\"}}"
@@ -789,15 +797,75 @@ public class Service : IService
         await _dbContext.SaveChangesAsync();
     }
 
-    private async Task<decimal> GetCurrentSpentByJar(Guid jarId, Guid userId)
+    private async Task CheckCategoryLimit(Guid categoryId, Guid userId)
+    {
+        var category = await _dbContext.Categories.FirstOrDefaultAsync(c => c.Id == categoryId);
+        if (category == null) return;
+
+        var activeLimit = await _dbContext.SpendingLimits
+            .Where(x => x.CategoryId == categoryId && x.UserId == userId && x.IsActive == true)
+            .ToListAsync();
+
+        foreach (var item in activeLimit)
+        {
+            var currentSpent = await GetCurrentSpentByCategory(categoryId, userId, item.ResetAt);
+            var alertThreshold = (item.AlertAtPercentage * item.LimitAmount) / 100;
+
+            if (currentSpent >= item.LimitAmount)
+            {
+                var notification = new Repository.Entity.Notification()
+                {
+                    UserId = item.UserId,
+                    Type = "SpendingAlert",
+                    Title = "Thông báo vượt ngưỡng!",
+                    Body = $"Xin thông báo! bạn đã chạm ngưỡng {item.LimitAmount:N0}đ giới hạn chi tiêu ở danh mục {category.Name}",
+                    IsRead = false,
+                    CreatedAt = DateTimeOffset.UtcNow,
+                    MetadataJson = $"{{\"limitId\": \"{item.Id}\", \"categoryId\": \"{category.Id}\"}}"
+                };
+                if (await HasCategoryLimitNotification(item.UserId, item.Id, categoryId, notification.Body)) return;
+                item.UpdatedAt = DateTimeOffset.UtcNow;
+                _dbContext.Notifications.Add(notification);
+            }
+            else if (currentSpent >= alertThreshold)
+            {
+                var notification = new Repository.Entity.Notification()
+                {
+                    UserId = item.UserId,
+                    Type = "SpendingAlert",
+                    Title = "Thông báo vượt ngưỡng!",
+                    Body = $"Xin thông báo! bạn đã chạm ngưỡng thông báo {item.AlertAtPercentage}% giới hạn chi tiêu ở danh mục {category.Name}",
+                    IsRead = false,
+                    CreatedAt = DateTimeOffset.UtcNow,
+                    MetadataJson = $"{{\"limitId\": \"{item.Id}\", \"categoryId\": \"{category.Id}\"}}"
+                };
+                if (await HasCategoryLimitNotification(item.UserId, item.Id, categoryId, notification.Body)) return;
+                _dbContext.Notifications.Add(notification);
+            }
+        }
+
+        await _dbContext.SaveChangesAsync();
+    }
+
+    private async Task<decimal> GetCurrentSpentByJar(Guid jarId, Guid userId, DateTimeOffset resetAt)
     {
         return (await _dbContext.Transactions
             .Where(t => t.UserId == userId
                         && !t.IsDeleted
                         && t.Type == "Expense"
                         && t.FromJarId == jarId
-                        && t.ToJarId == null
-                        && t.FinancialAccountId == null)
+                        && t.CreatedAt >= resetAt)
+            .SumAsync(t => (decimal?)t.TransactionsAmount)) ?? 0m;
+    }
+
+    private async Task<decimal> GetCurrentSpentByCategory(Guid categoryId, Guid userId, DateTimeOffset resetAt)
+    {
+        return (await _dbContext.Transactions
+            .Where(t => t.UserId == userId
+                        && !t.IsDeleted
+                        && t.Type == "Expense"
+                        && t.CategoryId == categoryId
+                        && t.CreatedAt >= resetAt)
             .SumAsync(t => (decimal?)t.TransactionsAmount)) ?? 0m;
     }
 
@@ -854,6 +922,37 @@ public class Service : IService
             metadata != null
             && metadata.Contains(limitIdMarker)
             && metadata.Contains(jarIdMarker));
+    }
+
+    private async Task<bool> HasCategoryLimitNotification(Guid userId, Guid limitId, Guid categoryId, string body)
+    {
+        var limitIdMarker = $"\"limitId\": \"{limitId}\"";
+        var categoryIdMarker = $"\"categoryId\": \"{categoryId}\"";
+
+        var pendingExists = _dbContext.ChangeTracker
+            .Entries<Notification>()
+            .Any(entry => entry.State == EntityState.Added
+                          && entry.Entity.UserId == userId
+                          && entry.Entity.Type == "SpendingAlert"
+                          && entry.Entity.Body == body
+                          && entry.Entity.MetadataJson != null
+                          && entry.Entity.MetadataJson.Contains(limitIdMarker)
+                          && entry.Entity.MetadataJson.Contains(categoryIdMarker));
+
+        if (pendingExists)
+            return true;
+
+        var metadataList = await _dbContext.Notifications
+            .Where(n => n.UserId == userId
+                        && n.Type == "SpendingAlert"
+                        && n.Body == body)
+            .Select(n => n.MetadataJson)
+            .ToListAsync();
+
+        return metadataList.Any(metadata =>
+            metadata != null
+            && metadata.Contains(limitIdMarker)
+            && metadata.Contains(categoryIdMarker));
     }
     
     public async Task<Response.CassoTransactionsResponse> ProcessCassoWebhook(

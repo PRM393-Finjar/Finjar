@@ -126,9 +126,9 @@ export function AddTransactionPage() {
     const noteTrim = note.trim() || undefined;
 
     if (type === "Expense") {
-      if (!fromJarId) {
-        const msg = "Hãy chọn hũ bạn muốn chi tiền.";
-        setFieldErrors({ fromJarId: msg });
+      if (!financialAccountId) {
+        const msg = "Hãy chọn tài khoản bạn muốn chi tiền.";
+        setFieldErrors({ financialAccountId: msg });
         setFormError(msg);
         return null;
       }
@@ -137,9 +137,9 @@ export function AddTransactionPage() {
         amount: num,
         note: noteTrim,
         categoryId: cat,
-        fromJarId,
+        fromJarId: null,
         toJarId: null,
-        financialAccountId: null,
+        financialAccountId,
         date: dateIso,
       };
     }
@@ -364,27 +364,27 @@ export function AddTransactionPage() {
 
             {type === "Expense" ? (
               <div className="space-y-2">
-                <Label htmlFor="fromJar">Hũ nguồn</Label>
+                <Label htmlFor="expenseAccount">Tài khoản</Label>
                 <select
-                  id="fromJar"
+                  id="expenseAccount"
                   className="brutal-select"
-                  value={fromJarId}
+                  value={financialAccountId}
                   onChange={(event) => {
-                    setFromJarId(event.target.value);
-                    clearFieldError("fromJarId");
+                    setFinancialAccountId(event.target.value);
+                    clearFieldError("financialAccountId");
                   }}
                   required
                   disabled={loadingDeps}
                 >
-                  <option value="">Chọn hũ</option>
-                  {jars.map((j) => (
-                    <option key={j.id} value={j.id}>
-                      {j.name} ({j.status})
+                  <option value="">Chọn tài khoản</option>
+                  {manualAccounts.map((a) => (
+                    <option key={a.id} value={a.id}>
+                      {a.name}
                     </option>
                   ))}
                 </select>
-                {fieldError("fromJarId") ? (
-                  <p className="text-sm text-red-500">{fieldError("fromJarId")}</p>
+                {fieldError("financialAccountId") ? (
+                  <p className="text-sm text-red-500">{fieldError("financialAccountId")}</p>
                 ) : null}
               </div>
             ) : null}
