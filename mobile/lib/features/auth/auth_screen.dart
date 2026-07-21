@@ -76,9 +76,9 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
         if (token != null && token.toString().isNotEmpty) {
           await SecureStorage.saveToken(token.toString());
           await SecureStorage.recordSuccessfulLogin(_emailController.text.trim());
-          final onboardingDone = data is Map
-              ? (data['isOnboardingCompleted'] ?? data['IsOnboardingCompleted'] ?? false) as bool
-              : false;
+          final onboardingDone = data is Map &&
+              (data['isOnboardingCompleted'] == true ||
+                  data['IsOnboardingCompleted'] == true);
           await SecureStorage.saveOnboardingCompleted(onboardingDone);
           if (!mounted) return;
           context.go(onboardingDone ? '/dashboard' : '/onboarding');
