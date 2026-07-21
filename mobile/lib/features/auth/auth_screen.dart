@@ -38,7 +38,8 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
     _tabController.addListener(() {
       if (!_tabController.indexIsChanging) setState(() {});
     });
-    if (kDebugMode) {
+    if (true) {
+      // Prefill tài khoản demo để test trên device/USB nhanh hơn.
       _emailController.text = TestData.userEmail;
       _passwordController.text = TestData.userPassword;
     }
@@ -94,9 +95,11 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
     } on DioException catch (e) {
       setState(() {
         if (e.type == DioExceptionType.connectionError ||
-            e.type == DioExceptionType.connectionTimeout) {
+            e.type == DioExceptionType.connectionTimeout ||
+            e.type == DioExceptionType.receiveTimeout ||
+            e.type == DioExceptionType.sendTimeout) {
           _errorMessage =
-              'Không kết nối được backend tại ${Env.apiBaseUrl}. Hãy chạy PostgreSQL + API (port 5284).';
+              'Không kết nối được backend tại ${Env.apiBaseUrl}. Free tier Render có thể đang ngủ — đợi ~30–60s rồi thử lại.';
         } else if (e.response?.statusCode == 403) {
           final email = _emailController.text.trim();
           if (email.isNotEmpty && mounted) {
@@ -106,7 +109,13 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
           final msg = e.response?.data?['message']?.toString() ?? e.response?.data?['error']?.toString();
           _errorMessage = msg ?? 'Email chưa được xác thực. Nhập mã OTP để hoàn tất đăng ký.';
         } else if (e.response?.statusCode == 400 || e.response?.statusCode == 401) {
-          _errorMessage = 'Sai email hoặc mật khẩu. Dùng: ${TestData.userEmail} / ${TestData.userPassword}';
+          final msg = e.response?.data?['message']?.toString() ?? e.response?.data?['error']?.toString();
+          _errorMessage = msg ??
+              'Sai email hoặc mật khẩu. Dùng: ${TestData.userEmail} / ${TestData.userPassword}';
+        } else if (e.response?.statusCode == 500) {
+          final msg = e.response?.data?['message']?.toString() ?? e.response?.data?['error']?.toString();
+          _errorMessage =
+              'Server lỗi khi đăng nhập (${msg ?? '500'}). Thường do chưa có user trên DB Render — bật SeedAccounts hoặc đăng ký mới.';
         } else {
           _errorMessage = 'Đăng nhập thất bại: ${e.message ?? 'Lỗi không xác định'}';
         }

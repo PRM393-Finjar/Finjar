@@ -30,6 +30,7 @@ public class AppDbContext : DbContext
     public DbSet<AiSetting> AiSettings { get; set; }
     public DbSet<EmailVerificationToken> EmailVerificationTokens { get; set; }
     public DbSet<PendingRegistration> PendingRegistrations { get; set; }
+    public DbSet<SubscriptionPayment> SubscriptionPayments { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -123,6 +124,11 @@ public class AppDbContext : DbContext
 
             builder.HasIndex(a => a.LastLoginAt)
                 .HasDatabaseName("ix_accounts_last_login_at");
+
+            builder.HasIndex(a => a.PremiumExpiresAt)
+                .HasDatabaseName("ix_accounts_premium_expires_at");
+
+            builder.Ignore(a => a.IsPremium);
 
             builder.ToTable(t => t.HasCheckConstraint(
                 "chk_accounts_status",
@@ -1010,6 +1016,56 @@ public class AppDbContext : DbContext
 
             builder.Property(p => p.UpdatedAt)
                 .HasDefaultValueSql("NOW()");
+        });
+
+        modelBuilder.Entity<SubscriptionPayment>(builder =>
+        {
+            builder.ToTable("subscription_payments");
+
+            builder.Property(p => p.OrderCode)
+                .IsRequired();
+
+            builder.HasIndex(p => p.OrderCode)
+                .IsUnique();
+
+            builder.Property(p => p.Amount)
+                .IsRequired();
+
+            builder.Property(p => p.DurationDays)
+                .HasDefaultValue(30);
+
+            builder.Property(p => p.Status)
+                .IsRequired()
+                .HasMaxLength(20)
+                .HasDefaultValue("Pending");
+
+            builder.Property(p => p.PaymentLinkId)
+                .HasMaxLength(100);
+
+            builder.Property(p => p.CheckoutUrl)
+                .HasColumnType("text");
+
+            builder.Property(p => p.Description)
+                .HasMaxLength(25);
+
+            builder.Property(p => p.PayOSReference)
+                .HasMaxLength(100);
+
+            builder.Property(p => p.TransactionDateTime)
+                .HasMaxLength(50);
+
+            builder.Property(p => p.CreatedAt)
+                .HasDefaultValueSql("NOW()");
+
+            builder.Property(p => p.UpdatedAt)
+                .HasDefaultValueSql("NOW()");
+
+            builder.HasOne(p => p.Account)
+                .WithMany(a => a.SubscriptionPayments)
+                .HasForeignKey(p => p.AccountId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            builder.HasIndex(p => p.AccountId);
         });
     }
 

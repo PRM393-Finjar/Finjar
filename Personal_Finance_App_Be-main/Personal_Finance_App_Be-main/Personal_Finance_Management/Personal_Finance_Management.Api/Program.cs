@@ -19,6 +19,7 @@ using GoalService = Personal_Finance_Management.Service.goal;
 using LimitService = Personal_Finance_Management.Service.limit;
 using NotificationService = Personal_Finance_Management.Service.notification;
 using AIService = Personal_Finance_Management.Service.AI;
+using SubscriptionService = Personal_Finance_Management.Service.Subscription;
 
 using Personal_Finance_Management.Service.Seeding;
 using Personal_Finance_Management.Service.Email;
@@ -132,6 +133,18 @@ builder.Services.AddScoped<NotificationService.IService, NotificationService.Ser
 builder.Services.AddScoped<BroadcastService.IService, BroadcastService.Service>();
 builder.Services.AddScoped<AdminService.IService, AdminService.Service>();
 builder.Services.AddScoped<AIService.IService, AIService.Service>();
+builder.Services.Configure<SubscriptionService.PayOSOptions>(
+    builder.Configuration.GetSection(SubscriptionService.PayOSOptions.SectionName));
+builder.Services.AddHttpClient("PayOS", (sp, client) =>
+{
+    var options = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<SubscriptionService.PayOSOptions>>().Value;
+    var baseUrl = string.IsNullOrWhiteSpace(options.BaseUrl)
+        ? "https://api-merchant.payos.vn"
+        : options.BaseUrl.TrimEnd('/');
+    client.BaseAddress = new Uri(baseUrl + "/");
+    client.Timeout = TimeSpan.FromSeconds(30);
+});
+builder.Services.AddScoped<SubscriptionService.IService, SubscriptionService.Service>();
 builder.Services.AddScoped<DatabaseSeedService>();
 builder.Services.AddHostedService<BroadcastDispatchBackgroundService>();
 builder.Services.AddHttpClient<OcrService.IService, OcrService.Service>(client =>

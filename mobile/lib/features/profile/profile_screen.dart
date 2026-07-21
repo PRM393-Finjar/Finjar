@@ -1,6 +1,8 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:intl/intl.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:finjar_mobile/core/network/api_endpoints.dart';
 import 'package:finjar_mobile/core/theme/brutal_theme.dart';
 import 'package:finjar_mobile/core/network/api_client.dart';
@@ -25,6 +27,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
   String _userEmail = '';
   String _currency = 'VND';
   String? _avatarUrl;
+  bool _isPremium = false;
+  DateTime? _premiumExpiresAt;
+  int _premiumAmount = 29000;
+  int _premiumDurationDays = 30;
+  bool _isUpgrading = false;
 
   static const List<String> _currencies = [
     'VND', 'USD', 'EUR', 'GBP', 'JPY', 'KRW', 'SGD', 'THB', 'CNY'
@@ -60,7 +67,31 @@ class _ProfileScreenState extends State<ProfileScreen> {
           _currency = data['preferredCurrency'] ?? data['PreferredCurrency'] ?? 'VND';
           AppSettings().setCurrency(_currency);
           _avatarUrl = data['avatarUrl'] ?? data['AvatarUrl'];
+          _isPremium = data['isPremium'] == true || data['IsPremium'] == true;
+          final expiresRaw = data['premiumExpiresAt'] ?? data['PremiumExpiresAt'];
+          _premiumExpiresAt = expiresRaw == null
+              ? null
+              : DateTime.tryParse(expiresRaw.toString())?.toLocal();
         });
+      }
+
+      try {
+        final statusRes = await _apiClient.get(ApiEndpoints.subscriptionStatus);
+        if (statusRes.statusCode == 200) {
+          final status = statusRes.data;
+          setState(() {
+            _isPremium = status['isPremium'] == true || status['IsPremium'] == true;
+            final expiresRaw = status['premiumExpiresAt'] ?? status['PremiumExpiresAt'];
+            _premiumExpiresAt = expiresRaw == null
+                ? null
+                : DateTime.tryParse(expiresRaw.toString())?.toLocal();
+            _premiumAmount = status['premiumAmount'] ?? status['PremiumAmount'] ?? _premiumAmount;
+            _premiumDurationDays =
+                status['premiumDurationDays'] ?? status['PremiumDurationDays'] ?? _premiumDurationDays;
+          });
+        }
+      } catch (_) {
+        // Status endpoint may be unavailable on older deploys.
       }
     } catch (e) {
       if (mounted) {
@@ -70,6 +101,53 @@ class _ProfileScreenState extends State<ProfileScreen> {
       }
     } finally {
       if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _upgradePremium() async {
+    if (_isUpgrading) return;
+    setState(() => _isUpgrading = true);
+    try {
+      final response = await _apiClient.post(
+        ApiEndpoints.subscriptionCreatePayment,
+        data: {},
+      );
+      final data = response.data;
+      final checkoutUrl = (data['checkoutUrl'] ?? data['CheckoutUrl'])?.toString();
+      if (checkoutUrl == null || checkoutUrl.isEmpty) {
+        throw Exception('Thiếu checkoutUrl từ PayOS');
+      }
+
+      final uri = Uri.parse(checkoutUrl);
+      final launched = await launchUrl(uri, mode: LaunchMode.externalApplication);
+      if (!launched && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Không mở được trang thanh toán PayOS.')),
+        );
+      } else if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Đã mở PayOS. Sau khi thanh toán, kéo xuống để làm mới trạng thái Premium.'),
+          ),
+        );
+      }
+    } on DioException catch (e) {
+      final msg = e.response?.data is Map
+          ? (e.response?.data['message'] ?? e.response?.data['error'] ?? e.message)
+          : e.message;
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Không tạo được thanh toán: $msg')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Không tạo được thanh toán: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isUpgrading = false);
     }
   }
 
@@ -584,6 +662,41 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             text: 'ĐỔI TÊN HIỂN THỊ',
                             color: BrutalColors.cardBg,
                             onTap: _showEditNameDialog,
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+
+                    // ── Premium ────────────────────────────────
+                    Text('Gói Premium', style: BrutalStyles.titleStyle(size: 18)),
+                    const SizedBox(height: 12),
+                    BrutalCard(
+                      color: _isPremium ? BrutalColors.green : BrutalColors.warning,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Text(
+                            _isPremium ? 'Bạn đang dùng Premium ✨' : 'Nâng cấp Premium',
+                            style: BrutalStyles.titleStyle(size: 18),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            _isPremium
+                                ? (_premiumExpiresAt == null
+                                    ? 'Premium đang hoạt động.'
+                                    : 'Hết hạn: ${DateFormat('dd/MM/yyyy HH:mm').format(_premiumExpiresAt!)}')
+                                : 'Thanh toán qua PayOS · ${_premiumDurationDays} ngày · '
+                                    '${NumberFormat.decimalPattern('vi_VN').format(_premiumAmount)} VND',
+                            style: BrutalStyles.bodyStyle(size: 13),
+                          ),
+                          const SizedBox(height: 16),
+                          BrutalButton(
+                            text: _isUpgrading
+                                ? 'ĐANG TẠO ĐƠN...'
+                                : (_isPremium ? 'GIA HẠN PREMIUM' : 'NÂNG CẤP PREMIUM'),
+                            color: BrutalColors.cardBg,
+                            onTap: _isUpgrading ? null : _upgradePremium,
                           ),
                         ],
                       ),

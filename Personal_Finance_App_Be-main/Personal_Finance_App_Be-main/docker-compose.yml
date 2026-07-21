@@ -23,5 +23,12 @@ services:
       MailOptions__Password: ${MAIL_PASSWORD:-}
       MailOptions__Host: ${MAIL_HOST:-smtp.gmail.com}
       MailOptions__Port: ${MAIL_PORT:-587}
+      PayOSOptions__ClientId: ${PAYOS_CLIENT_ID:-}
+      PayOSOptions__ApiKey: ${PAYOS_API_KEY:-}
+      PayOSOptions__ChecksumKey: ${PAYOS_CHECKSUM_KEY:-}
+      PayOSOptions__ReturnUrl: ${PAYOS_RETURN_URL:-https://finjar-i2il.onrender.com/api/v1/subscription/return}
+      PayOSOptions__CancelUrl: ${PAYOS_CANCEL_URL:-https://finjar-i2il.onrender.com/api/v1/subscription/cancel}
+      PayOSOptions__PremiumAmount: ${PAYOS_PREMIUM_AMOUNT:-29000}
+      PayOSOptions__PremiumDurationDays: ${PAYOS_PREMIUM_DURATION_DAYS:-30}
     ports:
       - "${API_PORT:-8080}:${API_CONTAINER_PORT:-8080}"

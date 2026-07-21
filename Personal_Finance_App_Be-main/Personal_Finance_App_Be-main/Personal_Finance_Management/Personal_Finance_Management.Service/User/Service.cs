@@ -40,7 +40,9 @@ public class Service : IService
             Phone = x.Phone,
             AvatarUrl = x.AvatarUrl,
             PreferredCurrency = x.PreferredCurrency,
-            IsOnboardingCompleted = x.IsOnboardingCompleted
+            IsOnboardingCompleted = x.IsOnboardingCompleted,
+            IsPremium = x.PremiumExpiresAt != null && x.PremiumExpiresAt > DateTimeOffset.UtcNow,
+            PremiumExpiresAt = x.PremiumExpiresAt
         });
         var result = await selectedQuery.FirstOrDefaultAsync();
         return result ?? throw new Exception("User not found");

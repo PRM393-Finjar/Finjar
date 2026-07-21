@@ -1,3 +1,10 @@
+databases:
+  - name: finjar-postgres
+    plan: free
+    region: singapore
+    databaseName: personalfinance
+    user: finjar
+
 services:
   - type: web
     name: personal-finance-management-api
@@ -17,9 +24,9 @@ services:
       - key: EnableSwagger
         value: "true"
       - key: ConnectionStrings__RenderConnection
-        sync: false
-      - key: ConnectionStrings__DefaultConnection
-        sync: false
+        fromDatabase:
+          name: finjar-postgres
+          property: connectionString
       - key: JwtOptions__SecretKey
         sync: false
       - key: JwtOptions__Issuer
@@ -102,3 +109,19 @@ services:
         value: "30"
       - key: CasooOptions__ApiKey
         sync: false
+      - key: PayOSOptions__ClientId
+        sync: false
+      - key: PayOSOptions__ApiKey
+        sync: false
+      - key: PayOSOptions__ChecksumKey
+        sync: false
+      - key: PayOSOptions__ReturnUrl
+        value: https://finjar-i2il.onrender.com/api/v1/subscription/return
+      - key: PayOSOptions__CancelUrl
+        value: https://finjar-i2il.onrender.com/api/v1/subscription/cancel
+      - key: PayOSOptions__PremiumAmount
+        value: "29000"
+      - key: PayOSOptions__PremiumDurationDays
+        value: "30"
+      - key: PayOSOptions__PremiumDescription
+        value: FinjarPre

@@ -15,6 +15,8 @@ public class Response
         public string? AvatarUrl { get; set; }
         public string PreferredCurrency { get; set; } = "VND";
         public bool IsOnboardingCompleted { get; set; }
+        public bool IsPremium { get; set; }
+        public DateTimeOffset? PremiumExpiresAt { get; set; }
     }
 
     public class UpdateUserResponse

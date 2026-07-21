@@ -21,22 +21,54 @@ public static class DatabaseMigrationExtension
                 $"Missing database connection string '{connectionName}' for environment '{builder.Environment.EnvironmentName}'."
             );
         }
-        return connectionString;
+        return NormalizeConnectionString(connectionString);
+    }
+
+    // hien: khuc nay dung de chuyen chuoi ket noi dang URL (postgres://) ma Render cap sang dinh dang Npgsql
+    private static string NormalizeConnectionString(string connectionString)
+    {
+        if (!connectionString.StartsWith("postgres://", StringComparison.OrdinalIgnoreCase)
+            && !connectionString.StartsWith("postgresql://", StringComparison.OrdinalIgnoreCase))
+        {
+            return connectionString;
+        }
+
+        var uri = new Uri(connectionString);
+        var userInfo = uri.UserInfo.Split(':', 2);
+
+        var npgsqlBuilder = new Npgsql.NpgsqlConnectionStringBuilder
+        {
+            Host = uri.Host,
+            Port = uri.Port > 0 ? uri.Port : 5432,
+            Database = Uri.UnescapeDataString(uri.AbsolutePath.TrimStart('/')),
+            Username = Uri.UnescapeDataString(userInfo[0]),
+            Password = userInfo.Length > 1 ? Uri.UnescapeDataString(userInfo[1]) : string.Empty,
+            SslMode = Npgsql.SslMode.Prefer,
+            TrustServerCertificate = true
+        };
+
+        return npgsqlBuilder.ConnectionString;
     }
 
     public static void ApplyDatabaseMigrations(this WebApplication app)
     {
-        // hien: khuc nay dung de kiem tra co cho phep chay migration tu config hay khong
-        if (!app.Configuration.GetValue<bool>("ApplyMigrations"))
+        // Production / seed luôn cần schema. Local chỉ migrate khi bật ApplyMigrations.
+        var applyMigrations = app.Configuration.GetValue<bool>("ApplyMigrations")
+            || !app.Environment.IsDevelopment()
+            || app.Configuration.GetValue<bool>("SeedAccounts:Enabled");
+
+        if (!applyMigrations)
         {
             return;
         }
 
-        // hien: khuc nay dung de tao scope rieng de lay AppDbContext tu dependency injection
         using var scope = app.Services.CreateScope();
         var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var logger = scope.ServiceProvider.GetRequiredService<ILoggerFactory>()
+            .CreateLogger("DatabaseMigration");
 
-        // hien: khuc nay dung de apply cac EF Core migration con thieu vao database hien tai
+        logger.LogInformation("Applying EF Core migrations...");
         dbContext.Database.Migrate();
+        logger.LogInformation("EF Core migrations applied.");
     }
 }

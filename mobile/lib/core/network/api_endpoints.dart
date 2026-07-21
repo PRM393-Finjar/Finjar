@@ -8,4 +8,6 @@ class ApiEndpoints {
   static const String categories = 'categories';
   static const String financialAccounts = 'financial-accounts';
   static const String jars = 'jars';
+  static const String subscriptionStatus = 'subscription/status';
+  static const String subscriptionCreatePayment = 'subscription/create-payment';
 }

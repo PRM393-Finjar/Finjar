@@ -101,7 +101,10 @@ public class Service : IService
 
         if (user is null || !BCrypt.Net.BCrypt.Verify(request.Password, user.PasswordHash))
         {
-            throw new Exception("Invalid email or password.");
+            throw AppValidationException.BadRequest(
+                "Invalid email or password.",
+                "email",
+                "INVALID_CREDENTIALS");
         }
 
         if (!user.IsEmailVerified)

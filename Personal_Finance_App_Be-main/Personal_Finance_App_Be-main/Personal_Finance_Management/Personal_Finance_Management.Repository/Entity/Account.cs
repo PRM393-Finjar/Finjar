@@ -16,6 +16,7 @@ public class Account : BaseEntity, IAudictableEntity
     public string PreferredCurrency { get; set; } = "VND";
     public bool IsOnboardingCompleted { get; set; } = false;
     public bool IsEmailVerified { get; set; } = false;
+    public DateTimeOffset? PremiumExpiresAt { get; set; }
 
     public Guid RoleId { get; set; }
     public Role Role { get; set; } = null!;
@@ -24,8 +25,11 @@ public class Account : BaseEntity, IAudictableEntity
     public JarSetup? JarSetup { get; set; }
     public ICollection<FinancialAccount> FinancialAccounts { get; set; } = new List<FinancialAccount>();
     public ICollection<AuditLog> AuditLogs { get; set; } = new List<AuditLog>();
+    public ICollection<SubscriptionPayment> SubscriptionPayments { get; set; } = new List<SubscriptionPayment>();
 
     public DateTimeOffset? LastLoginAt { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
     public DateTimeOffset UpdatedAt { get; set; }
+
+    public bool IsPremium => PremiumExpiresAt.HasValue && PremiumExpiresAt.Value > DateTimeOffset.UtcNow;
 }
