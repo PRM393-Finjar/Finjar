@@ -135,6 +135,17 @@ builder.Services.AddScoped<AdminService.IService, AdminService.Service>();
 builder.Services.AddScoped<AIService.IService, AIService.Service>();
 builder.Services.Configure<SubscriptionService.PayOSOptions>(
     builder.Configuration.GetSection(SubscriptionService.PayOSOptions.SectionName));
+builder.Services.PostConfigure<SubscriptionService.PayOSOptions>(options =>
+{
+    options.ClientId = options.ClientId?.Trim() ?? string.Empty;
+    options.ApiKey = options.ApiKey?.Trim() ?? string.Empty;
+    options.ChecksumKey = options.ChecksumKey?.Trim() ?? string.Empty;
+    options.BaseUrl = string.IsNullOrWhiteSpace(options.BaseUrl)
+        ? "https://api-merchant.payos.vn"
+        : options.BaseUrl.Trim().TrimEnd('/');
+    options.ReturnUrl = options.ReturnUrl?.Trim() ?? string.Empty;
+    options.CancelUrl = options.CancelUrl?.Trim() ?? string.Empty;
+});
 builder.Services.AddHttpClient("PayOS", (sp, client) =>
 {
     var options = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<SubscriptionService.PayOSOptions>>().Value;
@@ -142,7 +153,12 @@ builder.Services.AddHttpClient("PayOS", (sp, client) =>
         ? "https://api-merchant.payos.vn"
         : options.BaseUrl.TrimEnd('/');
     client.BaseAddress = new Uri(baseUrl + "/");
-    client.Timeout = TimeSpan.FromSeconds(30);
+    client.Timeout = TimeSpan.FromSeconds(20);
+    client.DefaultRequestHeaders.TryAddWithoutValidation("Accept", "application/json");
+}).ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler
+{
+    ConnectTimeout = TimeSpan.FromSeconds(10),
+    PooledConnectionLifetime = TimeSpan.FromMinutes(5)
 });
 builder.Services.AddScoped<SubscriptionService.IService, SubscriptionService.Service>();
 builder.Services.AddScoped<DatabaseSeedService>();

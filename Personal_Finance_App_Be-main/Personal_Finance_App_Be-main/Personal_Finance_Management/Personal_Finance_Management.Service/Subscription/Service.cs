@@ -16,7 +16,8 @@ public class Service : IService
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
         PropertyNameCaseInsensitive = true,
-        PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+        DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull
     };
 
     private readonly AppDbContext _dbContext;
@@ -59,48 +60,80 @@ public class Service : IService
             description = description[..9];
         }
 
+        var clientId = _options.ClientId.Trim();
+        var apiKey = _options.ApiKey.Trim();
+        var checksumKey = _options.ChecksumKey.Trim();
+        var cancelUrl = _options.CancelUrl.Trim();
+        var returnUrl = _options.ReturnUrl.Trim();
+
         var orderCode = GenerateOrderCode();
         var signature = PayOSSignatureHelper.CreatePaymentRequestSignature(
             orderCode,
             amount,
             description,
-            _options.CancelUrl,
-            _options.ReturnUrl,
-            _options.ChecksumKey);
+            cancelUrl,
+            returnUrl,
+            checksumKey);
 
-        var body = new
+        var body = new Dictionary<string, object?>
         {
-            orderCode,
-            amount,
-            description,
-            buyerName = $"{account.FirstName} {account.LastName}".Trim(),
-            buyerEmail = account.Email,
-            buyerPhone = account.Phone,
-            cancelUrl = _options.CancelUrl,
-            returnUrl = _options.ReturnUrl,
-            items = new[]
+            ["orderCode"] = orderCode,
+            ["amount"] = amount,
+            ["description"] = description,
+            ["buyerName"] = $"{account.FirstName} {account.LastName}".Trim(),
+            ["buyerEmail"] = account.Email,
+            ["cancelUrl"] = cancelUrl,
+            ["returnUrl"] = returnUrl,
+            ["items"] = new[]
             {
-                new
+                new Dictionary<string, object?>
                 {
-                    name = "FinJar Premium",
-                    quantity = 1,
-                    price = amount
+                    ["name"] = "FinJar Premium",
+                    ["quantity"] = 1,
+                    ["price"] = amount
                 }
             },
-            signature
+            ["signature"] = signature
         };
+        if (!string.IsNullOrWhiteSpace(account.Phone))
+        {
+            body["buyerPhone"] = account.Phone;
+        }
 
         var client = _httpClientFactory.CreateClient("PayOS");
-        using var httpRequest = new HttpRequestMessage(HttpMethod.Post, "/v2/payment-requests")
+        using var httpRequest = new HttpRequestMessage(HttpMethod.Post, "v2/payment-requests")
         {
             Content = new StringContent(JsonSerializer.Serialize(body, JsonOptions), Encoding.UTF8, "application/json")
         };
-        httpRequest.Headers.TryAddWithoutValidation("x-client-id", _options.ClientId);
-        httpRequest.Headers.TryAddWithoutValidation("x-api-key", _options.ApiKey);
+        httpRequest.Headers.TryAddWithoutValidation("x-client-id", clientId);
+        httpRequest.Headers.TryAddWithoutValidation("x-api-key", apiKey);
 
-        using var httpResponse = await client.SendAsync(httpRequest);
-        var raw = await httpResponse.Content.ReadAsStringAsync();
+        HttpResponseMessage httpResponse;
+        string raw;
+        try
+        {
+            httpResponse = await client.SendAsync(httpRequest);
+            raw = await httpResponse.Content.ReadAsStringAsync();
+        }
+        catch (TaskCanceledException ex)
+        {
+            _logger.LogError(ex, "PayOS create-payment timed out calling {BaseUrl}", client.BaseAddress);
+            throw AppValidationException.BadRequest(
+                "PayOS không phản hồi (timeout). Kiểm tra mạng Render→PayOS hoặc key/kênh thanh toán.",
+                "payos",
+                "PAYOS_TIMEOUT");
+        }
+        catch (HttpRequestException ex)
+        {
+            _logger.LogError(ex, "PayOS create-payment network error");
+            throw AppValidationException.BadRequest(
+                $"Không gọi được PayOS: {ex.Message}",
+                "payos",
+                "PAYOS_NETWORK_ERROR");
+        }
 
+        using (httpResponse)
+        {
         using var doc = JsonDocument.Parse(string.IsNullOrWhiteSpace(raw) ? "{}" : raw);
         var root = doc.RootElement;
         var code = root.TryGetProperty("code", out var codeEl) ? codeEl.GetString() : null;
@@ -148,7 +181,18 @@ public class Service : IService
         };
 
         _dbContext.SubscriptionPayments.Add(payment);
-        await _dbContext.SaveChangesAsync();
+        try
+        {
+            await _dbContext.SaveChangesAsync();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed saving SubscriptionPayment order {OrderCode}", orderCode);
+            throw AppValidationException.BadRequest(
+                "Lưu đơn thanh toán thất bại (kiểm tra migration bảng subscription_payments).",
+                "database",
+                "PAYOS_DB_SAVE_FAILED");
+        }
 
         return new Response.CreatePaymentResponse
         {
@@ -160,6 +204,7 @@ public class Service : IService
             QrCode = qrCode,
             Status = payment.Status
         };
+        }
     }
 
     public async Task<Response.SubscriptionStatusResponse> GetStatusAsync()
