@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using Personal_Finance_Management.Repository;
 using Personal_Finance_Management.Repository.Entity;
 using Personal_Finance_Management.Service.Base;
+using Personal_Finance_Management.Service.Validations;
 
 namespace Personal_Finance_Management.Service.Onboarding;
 
@@ -32,7 +33,10 @@ public class Service : IService
             throw new Exception("User not found");
         if (user.IsOnboardingCompleted == true)
         {
-            throw new Exception("Onboarding is already completed");
+            throw AppValidationException.Conflict(
+                "Onboarding is already completed",
+                "onboarding",
+                "ONBOARDING_ALREADY_COMPLETED");
         }
         var now = DateTimeOffset.UtcNow;
         var onboardingDetail = new Personal_Finance_Management.Repository.Entity.OnboardingProfile()

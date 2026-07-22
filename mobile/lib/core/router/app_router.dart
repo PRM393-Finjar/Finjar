@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:finjar_mobile/core/network/api_client.dart';
 import 'package:finjar_mobile/core/storage/secure_storage.dart';
 import 'package:finjar_mobile/core/theme/brutal_theme.dart';
 import 'package:finjar_mobile/core/theme/app_settings.dart';
@@ -30,7 +31,7 @@ final GoRouter appRouter = GoRouter(
   initialLocation: '/dashboard',
   redirect: (BuildContext context, GoRouterState state) async {
     final token = await SecureStorage.getToken();
-    final onboardingCompleted = await SecureStorage.isOnboardingCompleted();
+    var onboardingCompleted = await SecureStorage.isOnboardingCompleted();
     final location = state.matchedLocation;
     final isAuth = location == '/auth';
     final isOnboarding = location == '/onboarding';
@@ -45,6 +46,24 @@ final GoRouter appRouter = GoRouter(
 
     if (token == null || token.isEmpty) {
       return isAuth || isVerifyEmail ? null : '/auth';
+    }
+
+    // Đồng bộ cờ local với BE nếu lệch (ví dụ cài lại app / clear data).
+    if (!onboardingCompleted && !isOnboarding) {
+      try {
+        final api = ApiClient();
+        final me = await api.get('user/me');
+        final data = me.data;
+        final done = data is Map &&
+            (data['isOnboardingCompleted'] == true ||
+                data['IsOnboardingCompleted'] == true);
+        if (done) {
+          await SecureStorage.saveOnboardingCompleted(true);
+          onboardingCompleted = true;
+        }
+      } catch (_) {
+        // Giữ flag local nếu không gọi được API.
+      }
     }
 
     if (!onboardingCompleted) {

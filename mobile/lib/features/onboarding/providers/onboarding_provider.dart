@@ -54,10 +54,26 @@ class OnboardingNotifier extends StateNotifier<OnboardingState> {
       state = state.copyWith(isLoading: false);
       return true;
     } on DioException catch (e) {
-      final message = e.response?.data?['message'] ??
-          e.response?.data?['error'] ??
-          'Không thể gửi dữ liệu khảo sát. Vui lòng thử lại.';
-      state = state.copyWith(isLoading: false, error: message.toString());
+      final raw = e.response?.data;
+      final message = (raw is Map
+              ? (raw['message'] ?? raw['error'] ?? raw['Message'] ?? raw['Error'])
+              : null)
+          ?.toString();
+      final alreadyDone = e.response?.statusCode == 409 ||
+          (message != null &&
+              message.toLowerCase().contains('already completed'));
+
+      // BE đã hoàn tất onboarding trước đó (local flag lệch) → cho vào app.
+      if (alreadyDone) {
+        await SecureStorage.saveOnboardingCompleted(true);
+        state = state.copyWith(isLoading: false, error: null);
+        return true;
+      }
+
+      state = state.copyWith(
+        isLoading: false,
+        error: message ?? 'Không thể gửi dữ liệu khảo sát. Vui lòng thử lại.',
+      );
       return false;
     } catch (_) {
       state = state.copyWith(isLoading: false, error: 'Đã xảy ra lỗi kết nối.');
