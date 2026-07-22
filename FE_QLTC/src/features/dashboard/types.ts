@@ -34,6 +34,7 @@ export interface DashboardRecentTransaction {
   type: string;
   transactionsAmount: number;
   note: string | null;
+  source: string;
   date: string;
 }
 

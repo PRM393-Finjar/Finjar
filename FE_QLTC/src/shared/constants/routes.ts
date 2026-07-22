@@ -9,6 +9,7 @@ export const ROUTES = {
   TRANSACTION_DETAIL: "/transactions/:id",
   IMPORTS_OCR: "/imports/ocr",
   ACCOUNTS: "/accounts",
+  SETTINGS_BANK_ACCOUNTS: "/settings/bank-accounts",
   JARS: "/jars",
   BUDGET: "/budget",
   /** Cùng màn hình Ngân sách — khớp flow BE `/limits`. */

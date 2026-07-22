@@ -8,6 +8,10 @@ namespace Personal_Finance_Management.Service.FinancialAccount;
 
 public class Service : IService
 {
+    private const string SePayProviderCode = "SEPAY";
+    private const string SePayProviderName = "SePay";
+    private const string ActiveSyncStatus = "Active";
+
     private readonly AppDbContext _dbContext;
     private readonly IHttpContextAccessor _httpContext;
 
@@ -38,6 +42,7 @@ public class Service : IService
             currency = x.Currency,
             currentBalance = x.CurrentBalance,
             syncStatus = x.SyncStatus,
+            lastSync = x.LastSyncedAt,
             isDefault = x.IsDefault,
             isActive = x.IsActive
         });
@@ -190,15 +195,15 @@ public class Service : IService
             Name = bankName,
             AccountType = "Bank",
             ConnectionMode = "LinkedApi",
-            ProviderCode = "casso",
-            ProviderName = "Casso",
+            ProviderCode = SePayProviderCode,
+            ProviderName = SePayProviderName,
             ExternalAccountId = accountNumber,
             ExternalAccountRef = accountNumber,
             MaskedAccountNumber = maskedAccountNumber,
             AccountHolderName = accountHolderName,
             CurrentBalance = 0,
             Currency = "VND",
-            SyncStatus = "NeverSynced",
+            SyncStatus = ActiveSyncStatus,
             UserId = user.Id,
             IsDefault = request.isDefault,
             IsActive = true
@@ -223,6 +228,144 @@ public class Service : IService
         };
 
         return result;
+    }
+
+    public async Task<Response.ConnectSePayFinancialAccountResponse> ConnectSePayFinancialAccount(
+        Request.ConnectSePayFinancialAccountRequest request)
+    {
+        if (request is null)
+        {
+            throw AppValidationException.BadRequest("Request body is required", "body", "REQUIRED");
+        }
+
+        var userIdGuid = GetCurrentUserId();
+        var user = await _dbContext.Accounts.FirstOrDefaultAsync(x => x.Id == userIdGuid);
+        if (user == null)
+        {
+            throw new Exception("User not found");
+        }
+
+        var providerCode = request.providerCode?.Trim().ToUpperInvariant();
+        if (providerCode != SePayProviderCode)
+        {
+            throw AppValidationException.BadRequest("Provider code must be SEPAY", "providerCode", "SEPAY_PROVIDER_REQUIRED");
+        }
+
+        var bankCode = request.bankCode?.Trim().ToUpperInvariant();
+        var bankName = ResolveBankName(bankCode);
+        if (bankName is null)
+        {
+            throw AppValidationException.BadRequest("Unsupported bank code", "bankCode", "SEPAY_BANK_UNSUPPORTED");
+        }
+
+        var accountNumber = request.accountNumber?.Trim();
+        if (string.IsNullOrWhiteSpace(accountNumber))
+        {
+            throw AppValidationException.BadRequest("Bank account number is required", "accountNumber", "BANK_ACCOUNT_NUMBER_REQUIRED");
+        }
+
+        if (accountNumber.Length > 50)
+        {
+            throw AppValidationException.BadRequest("Bank account number is too long", "accountNumber", "BANK_ACCOUNT_NUMBER_TOO_LONG");
+        }
+
+        var accountName = request.accountName?.Trim();
+        if (string.IsNullOrWhiteSpace(accountName))
+        {
+            throw AppValidationException.BadRequest("Account name is required", "accountName", "ACCOUNT_NAME_REQUIRED");
+        }
+
+        if (accountName.Length > 150)
+        {
+            throw AppValidationException.BadRequest("Account name is too long", "accountName", "ACCOUNT_NAME_TOO_LONG");
+        }
+
+        var existedLinkedAccount = await _dbContext.FinancialAccounts.AnyAsync(x =>
+            x.UserId == userIdGuid
+            && x.IsActive
+            && x.ConnectionMode == "LinkedApi"
+            && x.ProviderCode == SePayProviderCode
+            && (x.ExternalAccountRef == accountNumber
+                || x.ExternalAccountId == accountNumber));
+
+        if (existedLinkedAccount)
+        {
+            throw AppValidationException.Conflict("SePay bank account already connected", "accountNumber", "SEPAY_ACCOUNT_ALREADY_CONNECTED");
+        }
+
+        var shouldSetDefault = !await _dbContext.FinancialAccounts
+            .AnyAsync(x => x.UserId == userIdGuid && x.IsActive);
+
+        var financialAccount = new Repository.Entity.FinancialAccount
+        {
+            Id = Guid.NewGuid(),
+            Name = bankName,
+            AccountType = "Bank",
+            ConnectionMode = "LinkedApi",
+            ProviderCode = SePayProviderCode,
+            ProviderName = SePayProviderName,
+            ExternalAccountId = accountNumber,
+            ExternalAccountRef = accountNumber,
+            MaskedAccountNumber = ServiceTextHelper.MaskTrailing(accountNumber),
+            AccountHolderName = accountName,
+            CurrentBalance = 0,
+            Currency = "VND",
+            SyncStatus = ActiveSyncStatus,
+            UserId = user.Id,
+            IsDefault = shouldSetDefault,
+            IsActive = true,
+            CreatedAt = DateTimeOffset.UtcNow,
+            UpdatedAt = DateTimeOffset.UtcNow
+        };
+
+        _dbContext.FinancialAccounts.Add(financialAccount);
+        await _dbContext.SaveChangesAsync();
+
+        return new Response.ConnectSePayFinancialAccountResponse
+        {
+            id = financialAccount.Id,
+            providerCode = financialAccount.ProviderCode,
+            providerName = financialAccount.ProviderName,
+            bankCode = bankCode!,
+            bank = financialAccount.Name,
+            maskedAccountNumber = financialAccount.MaskedAccountNumber!,
+            accountName = financialAccount.AccountHolderName,
+            currentBalance = financialAccount.CurrentBalance,
+            currency = financialAccount.Currency,
+            syncStatus = financialAccount.SyncStatus,
+            lastSync = financialAccount.LastSyncedAt
+        };
+    }
+
+    public async Task<Response.SePayConnectionStatusResponse> GetSePayConnectionStatus()
+    {
+        var userIdGuid = GetCurrentUserId();
+        var account = await _dbContext.FinancialAccounts
+            .Where(x => x.UserId == userIdGuid
+                        && x.IsActive
+                        && x.ConnectionMode == "LinkedApi"
+                        && x.ProviderCode == SePayProviderCode)
+            .OrderByDescending(x => x.LastSyncedAt ?? x.CreatedAt)
+            .FirstOrDefaultAsync();
+
+        if (account == null)
+        {
+            return new Response.SePayConnectionStatusResponse
+            {
+                connected = false,
+                bank = null,
+                lastSync = null,
+                syncStatus = "Disconnected"
+            };
+        }
+
+        return new Response.SePayConnectionStatusResponse
+        {
+            connected = true,
+            bank = account.Name,
+            lastSync = account.LastSyncedAt,
+            syncStatus = account.SyncStatus
+        };
     }
 
     public async Task<Response.UpdateFinancialAccountResponse> UpdateFinancialAccount(Guid id, Request.UpdateFinancialAccountRequest request)
@@ -295,5 +438,16 @@ public class Service : IService
     private Guid GetCurrentUserId()
     {
         return ServiceClaimHelper.GetRequiredUserId(_httpContext);
+    }
+
+    private static string? ResolveBankName(string? bankCode)
+    {
+        return bankCode switch
+        {
+            "VCB" => "Vietcombank",
+            "MB" or "MBB" => "MB Bank",
+            "TCB" or "TECHCOMBANK" => "Techcombank",
+            _ => null
+        };
     }
 }

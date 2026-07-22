@@ -104,6 +104,7 @@ function normalizeDashboard(raw: unknown): UserDashboardData {
         t.note != null || t.Note != null
           ? String(t.note ?? t.Note)
           : null,
+      source: String(t.source ?? t.Source ?? t.sourceType ?? t.SourceType ?? ""),
       date:
         typeof d === "string"
           ? d

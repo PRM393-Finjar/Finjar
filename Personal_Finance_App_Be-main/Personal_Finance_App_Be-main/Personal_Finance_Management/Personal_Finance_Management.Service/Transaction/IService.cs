@@ -10,5 +10,8 @@ public interface IService
         Request.CassoWebhookRequest request,
         string? secureToken,
         string? cassoSignature);
+    public Task<Response.SePayWebhookResponse> ProcessSePayWebhook(
+        Request.SePayWebhookRequest request,
+        string? authorization);
     public Task<Response.CassoTransactionsResponse> SyncCassoTransactions(Request.CassoSyncTransactionsRequest request);
 }

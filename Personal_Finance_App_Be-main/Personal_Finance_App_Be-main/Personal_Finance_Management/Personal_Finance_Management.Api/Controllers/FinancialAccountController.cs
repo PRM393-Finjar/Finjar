@@ -36,6 +36,20 @@ public class FinancialAccountController : ControllerBase
         return Ok(result);
     }
 
+    [HttpPost("sepay/connect")]
+    public async Task<IActionResult> ConnectSePayFinancialAccount([FromBody] Request.ConnectSePayFinancialAccountRequest request)
+    {
+        var result = await _service.ConnectSePayFinancialAccount(request);
+        return Ok(result);
+    }
+
+    [HttpGet("sepay/status")]
+    public async Task<IActionResult> GetSePayConnectionStatus()
+    {
+        var result = await _service.GetSePayConnectionStatus();
+        return Ok(result);
+    }
+
     [HttpPatch("{id}")]
     public async Task<IActionResult> UpdateFinancialAccount(Guid id, [FromBody] Request.UpdateFinancialAccountRequest request)
     {

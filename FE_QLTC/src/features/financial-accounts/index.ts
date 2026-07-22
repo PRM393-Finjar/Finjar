@@ -1,5 +1,6 @@
 export { financialAccountService } from "./services";
 export { AccountsPage } from "./pages/AccountsPage";
+export { BankAccountsSettingsPage } from "./pages/BankAccountsSettingsPage";
 export type {
   FinancialAccountItem,
   CreateManualFinancialAccountPayload,

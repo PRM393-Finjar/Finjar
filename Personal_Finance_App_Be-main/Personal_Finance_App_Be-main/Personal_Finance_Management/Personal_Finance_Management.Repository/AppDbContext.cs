@@ -328,7 +328,7 @@ public class AppDbContext : DbContext
                     "\"connection_mode\" IN ('Manual','LinkedApi')");
                 t.HasCheckConstraint(
                     "chk_financial_accounts_sync_status",
-                    "\"sync_status\" IN ('NeverSynced','Synced','Syncing','Error','Disconnected')");
+                    "\"sync_status\" IN ('NeverSynced','Synced','Syncing','Error','Disconnected','Active')");
             });
 
             builder.HasOne(f => f.User)
@@ -521,6 +521,11 @@ public class AppDbContext : DbContext
             builder.HasIndex(t => new { t.FinancialAccountId, t.TransactionDate })
                 .HasDatabaseName("ix_transactions_account_date")
                 .HasFilter("\"is_deleted\" = FALSE");
+
+            builder.HasIndex(t => new { t.FinancialAccountId, t.ExternalTransactionId })
+                .HasDatabaseName("ix_transactions_account_external_id")
+                .HasFilter("\"external_transaction_id\" IS NOT NULL AND \"is_deleted\" = FALSE")
+                .IsUnique();
 
             builder.HasIndex(t => new { t.UserId, t.CategoryId, t.TransactionDate })
                 .HasDatabaseName("ix_transactions_user_category_date")

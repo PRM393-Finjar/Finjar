@@ -5,6 +5,7 @@ using Personal_Finance_Management.Repository;
 using Personal_Finance_Management.Repository.Entity;
 using Personal_Finance_Management.Service.Base;
 using Personal_Finance_Management.Service.Validations;
+using System.Globalization;
 using System.Net.Http.Headers;
 using System.Text.Json;
 
@@ -15,6 +16,9 @@ public class Service : IService
     private const int FreeDailyTransactionQuota = 10;
     private const string DefaultTimeZoneId = "Asia/Ho_Chi_Minh";
     private const string WindowsDefaultTimeZoneId = "SE Asia Standard Time";
+    private const string SePayProviderCode = "SEPAY";
+    private const string SePayProviderName = "SePay";
+    private const string ActiveSyncStatus = "Active";
 
     private readonly AppDbContext _dbContext;
     private readonly IHttpContextAccessor _httpContext;
@@ -1208,6 +1212,159 @@ public class Service : IService
         };
     }
 
+    public async Task<Response.SePayWebhookResponse> ProcessSePayWebhook(
+        Request.SePayWebhookRequest request,
+        string? authorization)
+    {
+        if (request is null)
+        {
+            throw AppValidationException.BadRequest("Request body is required.", "body", "REQUIRED");
+        }
+
+        var configuredWebhookApiKey = _configuration["SePayOptions:WebhookApiKey"]
+                                      ?? _configuration["SePay:WebhookApiKey"];
+        if (string.IsNullOrWhiteSpace(configuredWebhookApiKey))
+        {
+            throw AppValidationException.BadRequest("SePay webhook API key is not configured.", "SePay:WebhookApiKey", "SEPAY_CONFIG_MISSING");
+        }
+
+        if (!IsValidSePayApiKey(authorization, configuredWebhookApiKey))
+        {
+            throw AppValidationException.BadRequest("Invalid SePay webhook API key.", "Authorization", "SEPAY_WEBHOOK_UNAUTHORIZED");
+        }
+
+        if (request.id <= 0)
+        {
+            throw AppValidationException.BadRequest("SePay transaction id is required.", "id", "SEPAY_TRANSACTION_ID_REQUIRED");
+        }
+
+        if (request.transferAmount <= 0)
+        {
+            throw AppValidationException.BadRequest("SePay transfer amount must be greater than zero.", "transferAmount", "SEPAY_AMOUNT_INVALID");
+        }
+
+        var transferType = request.transferType?.Trim().ToLowerInvariant();
+        if (transferType is not ("in" or "out"))
+        {
+            throw AppValidationException.BadRequest("SePay transfer type must be in or out.", "transferType", "SEPAY_TRANSFER_TYPE_INVALID");
+        }
+
+        var accountRef = request.accountNumber?.Trim();
+        if (string.IsNullOrWhiteSpace(accountRef))
+        {
+            accountRef = request.subAccount?.Trim();
+        }
+
+        if (string.IsNullOrWhiteSpace(accountRef))
+        {
+            throw AppValidationException.BadRequest("SePay account number is required.", "accountNumber", "SEPAY_ACCOUNT_NUMBER_REQUIRED");
+        }
+
+        var externalTransactionId = $"sepay:{request.id}";
+        var rawPayloadJson = JsonSerializer.Serialize(request);
+
+        var matchedAccounts = await _dbContext.FinancialAccounts
+            .Where(x => x.ConnectionMode == "LinkedApi"
+                        && x.IsActive
+                        && x.ProviderCode == SePayProviderCode
+                        && (x.ExternalAccountRef == accountRef
+                            || x.ExternalAccountId == accountRef
+                            || x.MaskedAccountNumber == accountRef))
+            .ToListAsync();
+
+        if (matchedAccounts.Count > 1)
+        {
+            throw AppValidationException.Conflict("Multiple linked financial accounts match SePay account.", "accountNumber", "SEPAY_ACCOUNT_CONFLICT");
+        }
+
+        if (matchedAccounts.Count == 0)
+        {
+            throw AppValidationException.NotFound("SePay linked financial account not found.", "accountNumber", "SEPAY_ACCOUNT_NOT_FOUND");
+        }
+
+        var financialAccount = matchedAccounts[0];
+        var existedTransaction = await _dbContext.Transactions.AnyAsync(x =>
+            x.FinancialAccountId == financialAccount.Id
+            && x.ExternalTransactionId == externalTransactionId
+            && !x.IsDeleted);
+        if (existedTransaction)
+        {
+            return new Response.SePayWebhookResponse
+            {
+                success = true,
+                receivedCount = 1,
+                createdCount = 0,
+                skippedCount = 1,
+                message = "SePay webhook skipped because transaction already exists."
+            };
+        }
+
+        await using var databaseTransaction = await _dbContext.Database.BeginTransactionAsync();
+
+        var signedAmount = transferType == "in"
+            ? request.transferAmount
+            : -request.transferAmount;
+        var transactionDate = ParseSePayTransactionDate(request.transactionDate);
+        var description = FirstNonEmpty(request.description, request.content, request.code, request.referenceCode);
+
+        _dbContext.Transactions.Add(new Repository.Entity.Transaction
+        {
+            Id = Guid.NewGuid(),
+            UserId = financialAccount.UserId,
+            FinancialAccountId = financialAccount.Id,
+            CategoryId = null,
+            FromJarId = null,
+            ToJarId = null,
+            Type = signedAmount > 0 ? "Income" : "Expense",
+            TransactionsAmount = Math.Abs(signedAmount),
+            Note = description,
+            RawDescription = request.content,
+            TransactionDate = transactionDate,
+            SourceType = "Imported",
+            ExternalTransactionId = externalTransactionId,
+            RawPayloadJson = rawPayloadJson,
+            PostedAt = DateTimeOffset.UtcNow,
+            ImportJobId = null,
+            IsDeleted = false,
+            DeletedAt = null,
+            CreatedAt = DateTimeOffset.UtcNow,
+            UpdatedAt = DateTimeOffset.UtcNow
+        });
+
+        if (request.accumulated.HasValue)
+        {
+            financialAccount.CurrentBalance = request.accumulated.Value;
+        }
+        else if (signedAmount > 0)
+        {
+            financialAccount.CurrentBalance += request.transferAmount;
+        }
+        else
+        {
+            financialAccount.CurrentBalance -= request.transferAmount;
+        }
+
+        financialAccount.ProviderCode = SePayProviderCode;
+        financialAccount.ProviderName = SePayProviderName;
+        financialAccount.SyncStatus = ActiveSyncStatus;
+        financialAccount.LastSyncedAt = DateTimeOffset.UtcNow;
+        financialAccount.LastSyncError = null;
+        financialAccount.LastSyncCursor = externalTransactionId;
+        financialAccount.UpdatedAt = DateTimeOffset.UtcNow;
+
+        await _dbContext.SaveChangesAsync();
+        await databaseTransaction.CommitAsync();
+
+        return new Response.SePayWebhookResponse
+        {
+            success = true,
+            receivedCount = 1,
+            createdCount = 1,
+            skippedCount = 0,
+            message = "SePay webhook processed."
+        };
+    }
+
     public async Task<Response.CassoTransactionsResponse> SyncCassoTransactions(Request.CassoSyncTransactionsRequest request)
     {
         if (request is null)
@@ -1647,6 +1804,48 @@ public class Service : IService
         {
             return null;
         }
+    }
+
+    private static bool IsValidSePayApiKey(string? authorization, string configuredWebhookApiKey)
+    {
+        if (string.IsNullOrWhiteSpace(authorization))
+        {
+            return false;
+        }
+
+        var providedApiKey = authorization.Trim();
+        const string apiKeyPrefix = "Apikey ";
+        if (providedApiKey.StartsWith(apiKeyPrefix, StringComparison.OrdinalIgnoreCase))
+        {
+            providedApiKey = providedApiKey[apiKeyPrefix.Length..].Trim();
+        }
+
+        return string.Equals(providedApiKey, configuredWebhookApiKey.Trim(), StringComparison.Ordinal);
+    }
+
+    private static DateTimeOffset ParseSePayTransactionDate(string? transactionDate)
+    {
+        if (DateTime.TryParseExact(
+                transactionDate,
+                "yyyy-MM-dd HH:mm:ss",
+                CultureInfo.InvariantCulture,
+                DateTimeStyles.None,
+                out var localDateTime))
+        {
+            return new DateTimeOffset(DateTime.SpecifyKind(localDateTime, DateTimeKind.Unspecified), TimeSpan.FromHours(7));
+        }
+
+        if (DateTimeOffset.TryParse(transactionDate, CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal, out var dateTimeOffset))
+        {
+            return dateTimeOffset;
+        }
+
+        return DateTimeOffset.UtcNow;
+    }
+
+    private static string? FirstNonEmpty(params string?[] values)
+    {
+        return values.FirstOrDefault(value => !string.IsNullOrWhiteSpace(value))?.Trim();
     }
 
     private sealed record DailyQuotaWindow(DateTimeOffset StartUtc, DateTimeOffset EndUtc, string LocalDateKey);

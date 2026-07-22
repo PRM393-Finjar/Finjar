@@ -53,6 +53,7 @@ public class Response
         public required string type { get; set; }
         public required decimal transactionsAmount { get; set; }
         public required string? note { get; set; }
+        public required string source { get; set; }
         public required DateTimeOffset date { get; set; }
     }
 

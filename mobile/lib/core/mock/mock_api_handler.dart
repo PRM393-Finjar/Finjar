@@ -328,6 +328,52 @@ class MockApiHandler {
       _accounts.add(item);
       return _ok(item, statusCode: 201);
     }
+    if (method == 'POST' && normalized == 'financial-accounts/sepay/connect') {
+      final payload = Map<String, dynamic>.from(data as Map);
+      final accountNumber = payload['accountNumber']?.toString() ?? '';
+      final bankCode = payload['bankCode']?.toString() ?? 'VCB';
+      final bankName = switch (bankCode) {
+        'MB' => 'MB Bank',
+        'TCB' => 'Techcombank',
+        _ => 'Vietcombank',
+      };
+      final masked = accountNumber.length > 4
+          ? '${'*' * (accountNumber.length - 4)}${accountNumber.substring(accountNumber.length - 4)}'
+          : accountNumber;
+      final item = {
+        'id': _nextId++,
+        'name': bankName,
+        'accountType': 'Bank',
+        'connectionMode': 'LinkedApi',
+        'providerCode': 'SEPAY',
+        'providerName': 'SePay',
+        'externalAccountRef': accountNumber,
+        'maskedAccountNumber': masked,
+        'accountHolderName': payload['accountName'],
+        'currentBalance': 0,
+        'balance': 0,
+        'currency': 'VND',
+        'syncStatus': 'Active',
+        'isActive': true,
+      };
+      _accounts.add(item);
+      return _ok(item, statusCode: 201);
+    }
+    if (method == 'GET' && normalized == 'financial-accounts/sepay/status') {
+      final account = _accounts.cast<Map<String, dynamic>?>().firstWhere(
+            (item) =>
+                item?['connectionMode'] == 'LinkedApi' &&
+                item?['providerCode'] == 'SEPAY' &&
+                item?['isActive'] != false,
+            orElse: () => null,
+          );
+      return _ok({
+        'connected': account != null,
+        'bank': account?['name'],
+        'lastSync': account?['lastSyncedAt'],
+        'syncStatus': account?['syncStatus'] ?? 'Disconnected',
+      });
+    }
     if (method == 'PATCH' && normalized.startsWith('financial-accounts/')) {
       return _ok({'message': 'updated'});
     }

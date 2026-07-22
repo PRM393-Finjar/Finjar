@@ -1,9 +1,11 @@
 import { apiClient } from "@/lib/axios";
 import { API_ENDPOINT } from "@/shared/constants/apiEndpoint";
 import type {
+  ConnectSePayFinancialAccountPayload,
   CreateLinkApiFinancialAccountPayload,
   CreateManualFinancialAccountPayload,
   FinancialAccountItem,
+  SePayConnectionStatus,
   UpdateFinancialAccountPayload,
 } from "./types";
 
@@ -30,6 +32,7 @@ function normalizeRow(raw: Record<string, unknown>): FinancialAccountItem {
     isDefault: Boolean(raw.isDefault),
     providerName: optStr(raw.providerName),
     maskedAccountNumber: optStr(raw.maskedAccountNumber),
+    lastSync: optStr(raw.lastSync),
     syncStatus: String(raw.syncStatus ?? "—"),
   };
 }
@@ -74,6 +77,30 @@ export const financialAccountService = {
       accountHolderName: payload.accountHolderName?.trim() || null,
       isDefault: payload.isDefault,
     });
+  },
+
+  async connectSePay(
+    payload: ConnectSePayFinancialAccountPayload,
+  ): Promise<void> {
+    await apiClient.post(`${BASE}/sepay/connect`, {
+      providerCode: payload.providerCode,
+      bankCode: payload.bankCode,
+      accountNumber: payload.accountNumber.trim(),
+      accountName: payload.accountName.trim(),
+    });
+  },
+
+  async getSePayStatus(): Promise<SePayConnectionStatus> {
+    const raw = (await apiClient.get(`${BASE}/sepay/status`)) as Record<
+      string,
+      unknown
+    >;
+    return {
+      connected: Boolean(raw.connected),
+      bank: optStr(raw.bank),
+      lastSync: optStr(raw.lastSync),
+      syncStatus: String(raw.syncStatus ?? "Disconnected"),
+    };
   },
 
   async update(

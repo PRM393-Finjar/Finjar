@@ -47,6 +47,22 @@ public class Request
         public JsonElement data { get; set; }
     }
 
+    public class SePayWebhookRequest
+    {
+        public long id { get; set; }
+        public string? gateway { get; set; }
+        public string? transactionDate { get; set; }
+        public string? accountNumber { get; set; }
+        public string? subAccount { get; set; }
+        public string? code { get; set; }
+        public string? content { get; set; }
+        public string? transferType { get; set; }
+        public string? description { get; set; }
+        public decimal transferAmount { get; set; }
+        public decimal? accumulated { get; set; }
+        public string? referenceCode { get; set; }
+    }
+
     public class CassoSyncTransactionsRequest
     {
         public Guid financialAccountId { get; set; }

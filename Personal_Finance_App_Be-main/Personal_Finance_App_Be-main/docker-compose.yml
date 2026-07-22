@@ -30,5 +30,6 @@ services:
       PayOSOptions__CancelUrl: ${PAYOS_CANCEL_URL:-https://finjar-i2il.onrender.com/api/v1/subscription/cancel}
       PayOSOptions__PremiumAmount: ${PAYOS_PREMIUM_AMOUNT:-29000}
       PayOSOptions__PremiumDurationDays: ${PAYOS_PREMIUM_DURATION_DAYS:-30}
+      SePay__WebhookApiKey: ${SEPAY_WEBHOOK_API_KEY:-replace-with-sepay-webhook-key}
     ports:
       - "${API_PORT:-8080}:${API_CONTAINER_PORT:-8080}"

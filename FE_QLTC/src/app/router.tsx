@@ -7,7 +7,10 @@ import {
   TransactionDetailPage,
 } from "@/features/transactions";
 import { OcrImportPage } from "@/features/imports";
-import { AccountsPage } from "@/features/financial-accounts";
+import {
+  AccountsPage,
+  BankAccountsSettingsPage,
+} from "@/features/financial-accounts";
 import { JarsPage } from "@/features/jars";
 import { BudgetPage } from "@/features/budget";
 import { CategoriesPage } from "@/features/categories";
@@ -86,6 +89,10 @@ export const router = createBrowserRouter([
       { path: ROUTES.TRANSACTION_DETAIL, element: <TransactionDetailPage /> },
       { path: ROUTES.IMPORTS_OCR, element: <OcrImportPage /> },
       { path: ROUTES.ACCOUNTS, element: <AccountsPage /> },
+      {
+        path: ROUTES.SETTINGS_BANK_ACCOUNTS,
+        element: <BankAccountsSettingsPage />,
+      },
       { path: ROUTES.JARS, element: <JarsPage /> },
       { path: ROUTES.BUDGET, element: <BudgetPage /> },
       { path: ROUTES.LIMITS, element: <BudgetPage /> },

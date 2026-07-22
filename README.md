@@ -2,6 +2,36 @@
 
 Monorepo nhóm PRM393 (Web + API + Docs):
 
+## SePay Bank Sync MVP
+
+Backend environment:
+
+```text
+SePay__WebhookApiKey=replace-with-the-api-key-configured-in-sepay
+```
+
+For an existing local PostgreSQL database, run this once after pulling SePay
+changes so `financial_accounts.sync_status` accepts `Active`:
+
+```powershell
+Get-Content .\database\fix_sepay_constraint.sql | docker exec -i finjar-postgres psql -U postgres -d PersonalFinanceManagementDb
+```
+
+Clean databases that run the EF migration
+`20260722070000_AddActiveFinancialAccountSyncStatus` already get the same
+constraint automatically. The SQL file is for local databases that were created
+before the fix or were patched manually during testing.
+
+SePay webhook URL:
+
+```text
+https://<api-domain>/api/v1/transactions/SePay
+```
+
+Use SePay API Key authentication. SePay sends `Authorization: Apikey <key>`.
+
+Finjar MVP only receives SePay webhooks, creates imported `Income`/`Expense` transactions, updates `FinancialAccount.CurrentBalance`, and lets the dashboard read the latest database state. It does not implement direct bank API, Open Banking, or OAuth.
+
 | Thư mục | Mô tả |
 |---------|--------|
 | `FE_QLTC/` | Web app React + Vite + TypeScript |

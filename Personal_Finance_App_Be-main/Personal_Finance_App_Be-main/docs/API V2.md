@@ -677,7 +677,7 @@ Response:
 }
 ```
 
-## 3. Transactions, Import, Casso
+## 3. Transactions, Import, SePay
 
 ### Transactions
 
@@ -844,24 +844,21 @@ Ghi chú:
 - User không được nhập giao dịch trong tương lai.
 - Request vẫn dùng `datetimeOffset` để lưu cả ngày và giờ, nhưng service phải validate `date <= now`.
 
-### Casso Transaction Integration
+### SePay Transaction Integration
 
-#### `GET /api/v1/transactions/Casso`
+#### `POST /api/v1/financial-accounts/sepay/connect`
 
 Request:
 
 ```json
 {
   "auth": "Bearer",
-  "query": {
-    "financialAccountId": "guid",
-    "fromDate": "date | null",
-    "toDate": "date | null",
-    "page": "int",
-    "pageSize": "int",
-    "sort": "string | null"
-  },
-  "body": null
+  "body": {
+    "providerCode": "SEPAY",
+    "bankCode": "VCB",
+    "accountNumber": "0123456789",
+    "accountName": "NGUYEN VAN A"
+  }
 }
 ```
 
@@ -871,15 +868,38 @@ Response:
 {
   "status": 200,
   "body": {
-    "receivedCount": "int",
-    "createdCount": "int",
-    "skippedCount": "int",
-    "message": "string"
+    "id": "guid",
+    "providerCode": "SEPAY",
+    "providerName": "SePay",
+    "bankCode": "VCB",
+    "bank": "Vietcombank",
+    "maskedAccountNumber": "******6789",
+    "accountName": "NGUYEN VAN A",
+    "currentBalance": 0,
+    "currency": "VND",
+    "syncStatus": "Active",
+    "lastSync": null
   }
 }
 ```
 
-#### `POST /api/v1/transactions/Casso`
+#### `GET /api/v1/financial-accounts/sepay/status`
+
+Response:
+
+```json
+{
+  "status": 200,
+  "body": {
+    "connected": true,
+    "bank": "Vietcombank",
+    "lastSync": "2026-07-22T10:00:00+07:00",
+    "syncStatus": "Active"
+  }
+}
+```
+
+#### `POST /api/v1/transactions/SePay`
 
 Request:
 
@@ -887,12 +907,20 @@ Request:
 {
   "auth": "Anonymous",
   "headers": {
-    "secure-token": "string | null",
-    "X-Casso-Signature": "string | null"
+    "Authorization": "Apikey <SePay__WebhookApiKey>"
   },
   "body": {
-    "error": "int",
-    "data": "json"
+    "id": 1001,
+    "gateway": "Vietcombank",
+    "transactionDate": "2026-07-22 10:00:00",
+    "accountNumber": "0123456789",
+    "subAccount": null,
+    "content": "Thanh toan",
+    "transferType": "in",
+    "description": "Thanh toan",
+    "transferAmount": 500000,
+    "accumulated": 10500000,
+    "referenceCode": "VCB-1001"
   }
 }
 ```
@@ -903,17 +931,22 @@ Response:
 {
   "status": 200,
   "body": {
-    "receivedCount": "int",
-    "createdCount": "int",
-    "skippedCount": "int",
-    "message": "string"
+    "success": true,
+    "receivedCount": 1,
+    "createdCount": 1,
+    "skippedCount": 0,
+    "message": "SePay webhook processed."
   }
 }
 ```
 
 Ghi chú:
 
-- Đây là endpoint integration Casso, route đang ghi theo controller hiện tại.
+- MVP chỉ nhận webhook SePay, không triển khai direct bank API, Open Banking hoặc OAuth.
+- `transferType = in` tạo `Income`; `transferType = out` tạo `Expense`.
+- `externalTransactionId = sepay:{id}` và chống trùng theo `(financialAccountId, externalTransactionId)`.
+- `accountNumber` phải map được với tài khoản đã link `providerCode = SEPAY`; unknown account trả `404`.
+- Nếu có `accumulated`, dùng làm `FinancialAccount.currentBalance`; nếu không có thì cộng/trừ theo `transferAmount`.
 
 ### Import/OCR
 

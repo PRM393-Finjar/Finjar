@@ -20,6 +20,14 @@ public class Request
         public bool isDefault { get; set; }
     }
 
+    public class ConnectSePayFinancialAccountRequest
+    {
+        public string providerCode { get; set; }
+        public string bankCode { get; set; }
+        public string accountNumber { get; set; }
+        public string accountName { get; set; }
+    }
+
     public class UpdateFinancialAccountRequest
     {
         public string? name { get; set; }

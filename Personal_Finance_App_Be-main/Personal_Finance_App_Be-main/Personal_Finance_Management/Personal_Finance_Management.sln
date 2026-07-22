@@ -6,6 +6,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Personal_Finance_Management
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Personal_Finance_Management.Repository", "Personal_Finance_Management.Repository\Personal_Finance_Management.Repository.csproj", "{ED0526B9-7219-49CF-B2F0-17F0130C96AD}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Personal_Finance_Management.Tests", "Personal_Finance_Management.Tests\Personal_Finance_Management.Tests.csproj", "{5C5245F4-72C5-4A29-A89B-28AF8D0681E8}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -24,5 +26,9 @@ Global
 		{ED0526B9-7219-49CF-B2F0-17F0130C96AD}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{ED0526B9-7219-49CF-B2F0-17F0130C96AD}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{ED0526B9-7219-49CF-B2F0-17F0130C96AD}.Release|Any CPU.Build.0 = Release|Any CPU
+		{5C5245F4-72C5-4A29-A89B-28AF8D0681E8}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{5C5245F4-72C5-4A29-A89B-28AF8D0681E8}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{5C5245F4-72C5-4A29-A89B-28AF8D0681E8}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{5C5245F4-72C5-4A29-A89B-28AF8D0681E8}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal

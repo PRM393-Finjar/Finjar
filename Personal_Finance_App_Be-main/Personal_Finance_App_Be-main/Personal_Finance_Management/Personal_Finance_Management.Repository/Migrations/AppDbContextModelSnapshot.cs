@@ -630,7 +630,7 @@ namespace Personal_Finance_Management.Repository.Migrations
 
                             t.HasCheckConstraint("chk_financial_accounts_connection_mode", "\"connection_mode\" IN ('Manual','LinkedApi')");
 
-                            t.HasCheckConstraint("chk_financial_accounts_sync_status", "\"sync_status\" IN ('NeverSynced','Synced','Syncing','Error','Disconnected')");
+                            t.HasCheckConstraint("chk_financial_accounts_sync_status", "\"sync_status\" IN ('NeverSynced','Synced','Syncing','Error','Disconnected','Active')");
                         });
                 });
 
@@ -1514,6 +1514,11 @@ namespace Personal_Finance_Management.Repository.Migrations
                     b.HasIndex("FinancialAccountId", "TransactionDate")
                         .HasDatabaseName("ix_transactions_account_date")
                         .HasFilter("\"is_deleted\" = FALSE");
+
+                    b.HasIndex("FinancialAccountId", "ExternalTransactionId")
+                        .IsUnique()
+                        .HasDatabaseName("ix_transactions_account_external_id")
+                        .HasFilter("\"external_transaction_id\" IS NOT NULL AND \"is_deleted\" = FALSE");
 
                     b.HasIndex("UserId", "TransactionDate")
                         .HasDatabaseName("ix_transactions_user_date")

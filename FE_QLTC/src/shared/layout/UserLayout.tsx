@@ -11,6 +11,7 @@ import {
   PiggyBank,
   ReceiptText,
   ScanLine,
+  Settings,
   Tags,
   WalletCards,
   X,
@@ -46,6 +47,7 @@ const userNavItems = [
 const userNavSecondaryItems = [
   { label: "OCR hóa đơn", to: ROUTES.IMPORTS_OCR, icon: ScanLine },
   { label: "Nhắc lịch", to: ROUTES.REMINDERS, icon: CalendarClock },
+  { label: "Bank Accounts", to: ROUTES.SETTINGS_BANK_ACCOUNTS, icon: Settings },
 ] as const;
 
 const mobilePrimaryItems = [

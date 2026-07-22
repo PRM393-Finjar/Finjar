@@ -17,6 +17,7 @@ public class Response
         public required string currency  { get; set; }
         public required decimal currentBalance  { get; set; }
         public required string syncStatus   { get; set; }
+        public required DateTimeOffset? lastSync { get; set; }
         public required bool isDefault { get; set; }
         public required bool isActive { get; set; } 
     }
@@ -46,6 +47,29 @@ public class Response
         public required string syncStatus { get; set; }
         public required bool isDefault { get; set; }
         public required bool isActive { get; set; }
+    }
+
+    public class ConnectSePayFinancialAccountResponse
+    {
+        public required Guid id { get; set; }
+        public required string providerCode { get; set; }
+        public required string providerName { get; set; }
+        public required string bankCode { get; set; }
+        public required string bank { get; set; }
+        public required string maskedAccountNumber { get; set; }
+        public required string? accountName { get; set; }
+        public required decimal currentBalance { get; set; }
+        public required string currency { get; set; }
+        public required string syncStatus { get; set; }
+        public required DateTimeOffset? lastSync { get; set; }
+    }
+
+    public class SePayConnectionStatusResponse
+    {
+        public required bool connected { get; set; }
+        public required string? bank { get; set; }
+        public required DateTimeOffset? lastSync { get; set; }
+        public required string syncStatus { get; set; }
     }
 
     public class UpdateFinancialAccountResponse
