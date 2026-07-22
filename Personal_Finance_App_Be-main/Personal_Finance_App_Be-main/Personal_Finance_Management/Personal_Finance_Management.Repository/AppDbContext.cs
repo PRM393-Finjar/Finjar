@@ -107,6 +107,12 @@ public class AppDbContext : DbContext
                 .HasColumnType("char(3)")
                 .HasDefaultValue("VND");
 
+            builder.Property(a => a.TimeZoneId)
+                .HasMaxLength(100);
+
+            builder.Property(a => a.QuotaTimeZoneId)
+                .HasMaxLength(100);
+
             builder.Property(a => a.IsOnboardingCompleted)
                 .HasDefaultValue(false);
 
@@ -508,6 +514,9 @@ public class AppDbContext : DbContext
             builder.HasIndex(t => new { t.UserId, t.TransactionDate })
                 .HasDatabaseName("ix_transactions_user_date")
                 .HasFilter("\"is_deleted\" = FALSE");
+
+            builder.HasIndex(t => new { t.UserId, t.CreatedAt })
+                .HasDatabaseName("ix_transactions_user_created_at");
 
             builder.HasIndex(t => new { t.FinancialAccountId, t.TransactionDate })
                 .HasDatabaseName("ix_transactions_account_date")

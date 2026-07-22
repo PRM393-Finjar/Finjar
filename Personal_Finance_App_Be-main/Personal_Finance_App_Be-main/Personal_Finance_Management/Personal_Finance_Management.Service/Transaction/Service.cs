@@ -12,6 +12,10 @@ namespace Personal_Finance_Management.Service.Transaction;
 
 public class Service : IService
 {
+    private const int FreeDailyTransactionQuota = 10;
+    private const string DefaultTimeZoneId = "Asia/Ho_Chi_Minh";
+    private const string WindowsDefaultTimeZoneId = "SE Asia Standard Time";
+
     private readonly AppDbContext _dbContext;
     private readonly IHttpContextAccessor _httpContext;
     private readonly IConfiguration _configuration;
@@ -179,10 +183,12 @@ public class Service : IService
     {
         var userIdGuid = GetCurrentUserId();
 
-        var user = await _dbContext.Accounts
-            .FirstOrDefaultAsync(x => x.Id == userIdGuid);
-        if (user == null)
-            throw new Exception("User not found");
+        Repository.Entity.Transaction transaction;
+        await using (var quotaTransaction = await _dbContext.Database.BeginTransactionAsync())
+        {
+        var user = await PrepareDailyTransactionQuotaAsync(userIdGuid);
+        await EnsureDailyTransactionQuotaAvailable(user);
+
         if (request.financialAccountId.HasValue)
         {
             var financialAccount = await _dbContext.FinancialAccounts
@@ -201,7 +207,7 @@ public class Service : IService
             }
         }
 
-        var transaction = new Repository.Entity.Transaction()
+        transaction = new Repository.Entity.Transaction()
         {
             // Identity
             UserId = userIdGuid,
@@ -415,6 +421,8 @@ public class Service : IService
         }
         
         await _dbContext.SaveChangesAsync();
+        await quotaTransaction.CommitAsync();
+        }
 
         // Evaluate goals for affected jars
         if (transaction.ToJarId != null)
@@ -1010,6 +1018,7 @@ public class Service : IService
 
         var createdCount = 0;
         var skippedCount = 0;
+        var pendingQuotaCountsByUser = new Dictionary<Guid, int>();
         await using var databaseTransaction = await _dbContext.Database.BeginTransactionAsync();
 
         foreach (var item in cassoTransactions)
@@ -1106,6 +1115,11 @@ public class Service : IService
                 skippedCount++;
                 continue;
             }
+
+            var pendingQuotaCount = pendingQuotaCountsByUser.GetValueOrDefault(financialAccount.UserId) + 1;
+            var account = await PrepareDailyTransactionQuotaAsync(financialAccount.UserId);
+            await EnsureDailyTransactionQuotaAvailable(account, pendingQuotaCount);
+            pendingQuotaCountsByUser[financialAccount.UserId] = pendingQuotaCount;
 
             var transactionDate = DateTimeOffset.UtcNow;
             if (item.TryGetProperty("transactionDateTime", out var transactionDateTimeElement)
@@ -1397,6 +1411,9 @@ public class Service : IService
                 continue;
             }
 
+            var account = await PrepareDailyTransactionQuotaAsync(userIdGuid);
+            await EnsureDailyTransactionQuotaAvailable(account, createdCount + 1);
+
             var transactionDate = DateTimeOffset.UtcNow;
             if (record.TryGetProperty("transactionDateTime", out var transactionDateTimeElement)
                 && DateTimeOffset.TryParse(transactionDateTimeElement.GetString(), out var parsedTransactionDateTime))
@@ -1493,4 +1510,144 @@ public class Service : IService
     {
         return ServiceClaimHelper.GetRequiredUserId(_httpContext);
     }
+
+    private async Task EnsureDailyTransactionQuotaAvailable(Guid userId, int requestedCount = 1)
+    {
+        var user = await PrepareDailyTransactionQuotaAsync(userId);
+        await EnsureDailyTransactionQuotaAvailable(user, requestedCount);
+    }
+
+    private async Task EnsureDailyTransactionQuotaAvailable(Account user, int requestedCount = 1)
+    {
+        if (requestedCount <= 0 || user.IsPremium)
+        {
+            return;
+        }
+
+        var quotaWindow = GetDailyQuotaWindow(user);
+        var currentCount = await _dbContext.Transactions
+            .AsNoTracking()
+            .CountAsync(x => x.UserId == user.Id
+                             && x.CreatedAt >= quotaWindow.StartUtc
+                             && x.CreatedAt < quotaWindow.EndUtc);
+
+        if (currentCount + requestedCount <= FreeDailyTransactionQuota)
+        {
+            return;
+        }
+
+        throw AppValidationException.BadRequest(
+            $"Free plan daily transaction quota exceeded. Limit is {FreeDailyTransactionQuota} transactions per day.",
+            "transactions",
+            "DAILY_TRANSACTION_QUOTA_EXCEEDED");
+    }
+
+    private async Task<Account> GetQuotaAccount(Guid userId)
+    {
+        var user = await _dbContext.Accounts
+            .FirstOrDefaultAsync(x => x.Id == userId);
+
+        return user ?? throw AppValidationException.NotFound("User not found.", "userId", "USER_NOT_FOUND");
+    }
+
+    private async Task<Account> PrepareDailyTransactionQuotaAsync(Guid userId)
+    {
+        await LockDailyTransactionQuotaAsync(userId);
+        var user = await GetQuotaAccount(userId);
+        ApplyPendingQuotaTimeZoneIfDue(user, DateTimeOffset.UtcNow);
+        return user;
+    }
+
+    private async Task LockDailyTransactionQuotaAsync(Guid userId)
+    {
+        var lockKey = $"daily-transaction-quota:{userId:N}";
+        await _dbContext.Database.ExecuteSqlInterpolatedAsync(
+            $"SELECT pg_advisory_xact_lock(hashtext({lockKey}))");
+    }
+
+    private static DailyQuotaWindow GetDailyQuotaWindow(Account user)
+    {
+        var timeZone = ResolveUserTimeZone(user);
+        var userNow = TimeZoneInfo.ConvertTime(DateTimeOffset.UtcNow, timeZone);
+        var todayStartLocal = DateTime.SpecifyKind(userNow.Date, DateTimeKind.Unspecified);
+        var tomorrowStartLocal = todayStartLocal.AddDays(1);
+
+        return new DailyQuotaWindow(
+            new DateTimeOffset(TimeZoneInfo.ConvertTimeToUtc(todayStartLocal, timeZone), TimeSpan.Zero),
+            new DateTimeOffset(TimeZoneInfo.ConvertTimeToUtc(tomorrowStartLocal, timeZone), TimeSpan.Zero),
+            userNow.ToString("yyyyMMdd"));
+    }
+
+    private static TimeZoneInfo ResolveUserTimeZone(Account user)
+    {
+        var configuredTimeZoneId = GetConfiguredTimeZoneId(user);
+        return FindTimeZone(configuredTimeZoneId)
+               ?? FindTimeZone(DefaultTimeZoneId)
+               ?? FindTimeZone(WindowsDefaultTimeZoneId)
+               ?? throw new InvalidOperationException($"Default timezone '{DefaultTimeZoneId}' is not available.");
+    }
+
+    private static string? GetConfiguredTimeZoneId(Account user)
+    {
+        return string.IsNullOrWhiteSpace(user.QuotaTimeZoneId) ? GetDesiredTimeZoneId(user) : user.QuotaTimeZoneId.Trim();
+    }
+
+    private static void ApplyPendingQuotaTimeZoneIfDue(Account user, DateTimeOffset now)
+    {
+        user.QuotaTimeZoneId = GetActiveQuotaTimeZoneId(user);
+
+        if (user.QuotaTimeZoneChangeEffectiveAt.HasValue
+            && now >= user.QuotaTimeZoneChangeEffectiveAt.Value)
+        {
+            user.QuotaTimeZoneId = GetDesiredTimeZoneId(user);
+            user.QuotaTimeZoneChangeEffectiveAt = null;
+        }
+    }
+
+    private static string GetActiveQuotaTimeZoneId(Account user)
+    {
+        return string.IsNullOrWhiteSpace(user.QuotaTimeZoneId)
+            ? GetDesiredTimeZoneId(user)
+            : user.QuotaTimeZoneId.Trim();
+    }
+
+    private static string GetDesiredTimeZoneId(Account user)
+    {
+        return string.IsNullOrWhiteSpace(user.TimeZoneId) ? DefaultTimeZoneId : user.TimeZoneId.Trim();
+    }
+
+    private static TimeZoneInfo? FindTimeZone(string? timeZoneId)
+    {
+        if (string.IsNullOrWhiteSpace(timeZoneId))
+        {
+            return null;
+        }
+
+        var normalizedTimeZoneId = timeZoneId.Trim();
+        if (string.Equals(normalizedTimeZoneId, DefaultTimeZoneId, StringComparison.OrdinalIgnoreCase))
+        {
+            return TryFindSystemTimeZone(DefaultTimeZoneId)
+                   ?? TryFindSystemTimeZone(WindowsDefaultTimeZoneId);
+        }
+
+        return TryFindSystemTimeZone(normalizedTimeZoneId);
+    }
+
+    private static TimeZoneInfo? TryFindSystemTimeZone(string timeZoneId)
+    {
+        try
+        {
+            return TimeZoneInfo.FindSystemTimeZoneById(timeZoneId);
+        }
+        catch (TimeZoneNotFoundException)
+        {
+            return null;
+        }
+        catch (InvalidTimeZoneException)
+        {
+            return null;
+        }
+    }
+
+    private sealed record DailyQuotaWindow(DateTimeOffset StartUtc, DateTimeOffset EndUtc, string LocalDateKey);
 }
