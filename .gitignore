@@ -40,4 +40,9 @@ artifacts/
 **/__pycache__/
 **/.venv/
 Personal_Finance_App_Be-main/**/appsettings.Development.json
-Personal_Finance_App_Be-main/**/appsettings.json
+Personal_Finance_App_Be-main/**/appsettings.*.local.json
+
+# Flutter generated local files
+.flutter-plugins
+**/.flutter-plugins
+**/.flutter-plugins-dependencies

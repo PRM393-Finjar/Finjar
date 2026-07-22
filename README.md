@@ -42,36 +42,65 @@ Finjar MVP only receives SePay webhooks, creates imported `Income`/`Expense` tra
 
 ## Chạy nhanh
 
-**Backend:** mở solution trong `Personal_Finance_App_Be-main/Personal_Finance_App_Be-main/`, cấu hình `appsettings` local (không commit), chạy API (mặc định `http://localhost:5284`).
+**Lấy nhánh `nhutruong`:**
+
+```bash
+git fetch origin
+git checkout nhutruong
+git pull
+```
+
+**Backend + PostgreSQL bằng Docker Compose:**
+
+```powershell
+cd Personal_Finance_App_Be-main\Personal_Finance_App_Be-main
+docker compose up --build
+# API: http://localhost:5284
+# Swagger: http://localhost:5284/swagger
+```
+
+Backend đã có `appsettings.json` local-safe trong repo. Nếu chạy bằng Docker Compose thì PostgreSQL cũng được tạo tự động.
+
+**Backend bằng `dotnet run` nếu không dùng Docker Compose:**
+
+```powershell
+docker run -d --name personal-finance-postgres -e POSTGRES_PASSWORD=postgres123 -e POSTGRES_DB=PersonalFinanceManagementDb -p 5432:5432 postgres:16
+cd Personal_Finance_App_Be-main\Personal_Finance_App_Be-main\Personal_Finance_Management\Personal_Finance_Management.Api
+dotnet run --launch-profile http
+# API: http://localhost:5284
+```
 
 **Frontend:**
 
 ```bash
 cd FE_QLTC
 npm install
-# tạo .env.local: VITE_API_LOCAL_URL=http://localhost:5284/api/v1
 npm run dev
 ```
 
 **Chạy cả 3 (BE + FE + Mobile):**
 
 ```powershell
-# 1. PostgreSQL (Docker, một lần)
-docker run -d --name personal-finance-postgres -e POSTGRES_PASSWORD=MyStrongPassword123@ -e POSTGRES_DB=PersonalFinanceManagementDb -p 5432:5432 postgres:16
+# 1. Backend + PostgreSQL — terminal 1
+cd Personal_Finance_App_Be-main\Personal_Finance_App_Be-main
+docker compose up --build
 
-# 2. Backend — terminal 1
+# 2. Web FE — terminal 2
+cd FE_QLTC
+npm install
+npm run dev
+
+# 3. Mobile — terminal 3
+cd mobile
+flutter run -d chrome --web-port=5174 --dart-define=API_BASE_URL=http://localhost:5284/api/v1
+```
+
+Nếu muốn chạy backend không qua Docker Compose:
+
+```powershell
+docker run -d --name personal-finance-postgres -e POSTGRES_PASSWORD=postgres123 -e POSTGRES_DB=PersonalFinanceManagementDb -p 5432:5432 postgres:16
 cd Personal_Finance_App_Be-main\Personal_Finance_App_Be-main\Personal_Finance_Management\Personal_Finance_Management.Api
 dotnet run --launch-profile http
-
-# 3. Web FE — terminal 2
-cd FE_QLTC
-npm run dev
-# → http://localhost:5173 (hoặc 5174 nếu 5173 đã dùng)
-
-# 4. Mobile — terminal 3
-cd mobile
-flutter run -d chrome --web-port=5173 --dart-define=API_BASE_URL=http://localhost:5284/api/v1
-# → http://localhost:5173
 ```
 
 Chi tiết mobile Flutter: `docs/MOBILE_FLUTTER_HUONG_DAN.md`.

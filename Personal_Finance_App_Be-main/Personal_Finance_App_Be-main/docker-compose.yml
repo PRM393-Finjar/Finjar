@@ -1,16 +1,37 @@
 services:
+  db:
+    container_name: personal-finance-postgres
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-PersonalFinanceManagementDb}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres123}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - personal-finance-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-PersonalFinanceManagementDb}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
   api:
     container_name: personal-finance-api
     build:
       context: .
       dockerfile: Dockerfile
     restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
     environment:
       ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Development}
       PORT: ${API_CONTAINER_PORT:-8080}
-      ApplyMigrations: ${APPLY_MIGRATIONS:-false}
-      EnableSwagger: ${ENABLE_SWAGGER:-false}
-      ConnectionStrings__DefaultConnection: ${CONNECTION_STRING:-Host=localhost;Port=5432;Database=PersonalFinanceManagementDb;Username=postgres;Password=postgres123}
+      ApplyMigrations: ${APPLY_MIGRATIONS:-true}
+      EnableSwagger: ${ENABLE_SWAGGER:-true}
+      ConnectionStrings__DefaultConnection: ${CONNECTION_STRING:-Host=db;Port=5432;Database=PersonalFinanceManagementDb;Username=postgres;Password=postgres123}
       JwtOptions__SecretKey: ${JWT_SECRET_KEY:-replace-with-a-long-random-secret-at-least-32-chars}
       JwtOptions__Issuer: ${JWT_ISSUER:-PersonalFinanceManagement}
       JwtOptions__Audience: ${JWT_AUDIENCE:-PersonalFinanceManagement}
@@ -32,4 +53,7 @@ services:
       PayOSOptions__PremiumDurationDays: ${PAYOS_PREMIUM_DURATION_DAYS:-30}
       SePay__WebhookApiKey: ${SEPAY_WEBHOOK_API_KEY:-replace-with-sepay-webhook-key}
     ports:
-      - "${API_PORT:-8080}:${API_CONTAINER_PORT:-8080}"
+      - "${API_PORT:-5284}:${API_CONTAINER_PORT:-8080}"
+
+volumes:
+  personal-finance-postgres-data:
