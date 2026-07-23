@@ -10,7 +10,7 @@ public class Service : IService
 {
     private const string SePayProviderCode = "SEPAY";
     private const string SePayProviderName = "SePay";
-    private const string ActiveSyncStatus = "Active";
+    private const string ActiveSyncStatus = "Synced";
 
     private readonly AppDbContext _dbContext;
     private readonly IHttpContextAccessor _httpContext;
@@ -29,7 +29,7 @@ public class Service : IService
             .FirstOrDefaultAsync(x => x.Id == userIdGuid);
 
         if (user == null)
-            throw new Exception("User not found");
+            throw AppValidationException.Unauthorized("User not found", "user", "USER_NOT_FOUND");
         var query = _dbContext.FinancialAccounts.Where(x => x.UserId == userIdGuid && x.IsActive);
         var selectedQuery = query.Select(x => new Response.GetFinancialAccountResponse
         {
@@ -242,7 +242,7 @@ public class Service : IService
         var user = await _dbContext.Accounts.FirstOrDefaultAsync(x => x.Id == userIdGuid);
         if (user == null)
         {
-            throw new Exception("User not found");
+            throw AppValidationException.Unauthorized("User not found", "user", "USER_NOT_FOUND");
         }
 
         var providerCode = request.providerCode?.Trim().ToUpperInvariant();
@@ -440,14 +440,19 @@ public class Service : IService
         return ServiceClaimHelper.GetRequiredUserId(_httpContext);
     }
 
-    private static string? ResolveBankName(string? bankCode)
+    private static string ResolveBankName(string? bankCode)
     {
-        return bankCode switch
+        return bankCode?.ToUpperInvariant() switch
         {
-            "VCB" => "Vietcombank",
-            "MB" or "MBB" => "MB Bank",
+            "VCB" or "VIETCOMBANK" => "Vietcombank",
+            "MB" or "MBB" or "MBBANK" => "MB Bank",
             "TCB" or "TECHCOMBANK" => "Techcombank",
-            _ => null
+            "BIDV" => "BIDV",
+            "CTG" or "VIETINBANK" => "VietinBank",
+            "ACB" => "ACB",
+            "VPB" or "VPBANK" => "VPBank",
+            "TPB" or "TPBANK" => "TPBank",
+            _ => string.IsNullOrWhiteSpace(bankCode) ? "Ngân hàng" : bankCode.Trim()
         };
     }
 }

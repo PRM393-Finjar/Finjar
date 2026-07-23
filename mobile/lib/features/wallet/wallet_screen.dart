@@ -26,6 +26,7 @@ class _WalletScreenState extends State<WalletScreen>
 
   List<dynamic> _accounts = [];
   List<dynamic> _jars = [];
+  List<dynamic> _groupJars = [];
   List<dynamic> _limits = [];
   List<dynamic> _categories = []; // Loaded for limits creation dropdown
 
@@ -39,6 +40,20 @@ class _WalletScreenState extends State<WalletScreen>
     AppSettings().categoriesRefreshNotifier.addListener(_fetchCategories);
     AppSettings().walletRefreshNotifier.addListener(_loadWalletData);
     _loadWalletData();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    try {
+      final tabParam = GoRouterState.of(context).uri.queryParameters['tab'];
+      if (tabParam != null) {
+        final tabIdx = int.tryParse(tabParam);
+        if (tabIdx != null && tabIdx >= 0 && tabIdx < 3 && _tabController.index != tabIdx) {
+          _tabController.animateTo(tabIdx);
+        }
+      }
+    } catch (_) {}
   }
 
   @override
@@ -58,6 +73,7 @@ class _WalletScreenState extends State<WalletScreen>
       await Future.wait([
         _fetchAccounts(),
         _fetchJars(),
+        _fetchGroupJars(),
         _fetchLimits(),
         _fetchCategories(),
       ]);
@@ -65,6 +81,7 @@ class _WalletScreenState extends State<WalletScreen>
       setState(() {
         _accounts = [];
         _jars = [];
+        _groupJars = [];
         _limits = [];
         _categories = [];
       });
@@ -105,6 +122,99 @@ class _WalletScreenState extends State<WalletScreen>
         _jars = parsed;
       });
     }
+  }
+
+  Future<void> _fetchGroupJars() async {
+    try {
+      final response = await _apiClient.get('group-jars');
+      if (response.statusCode == 200) {
+        final data = response.data;
+        List<dynamic> parsed = [];
+        if (data is Map) {
+          parsed = data['data'] ?? data['Data'] ?? [];
+        } else if (data is List) {
+          parsed = data;
+        }
+        setState(() {
+          _groupJars = parsed;
+        });
+      }
+    } catch (_) {}
+  }
+
+  void _showCreateGroupJarDialog() {
+    final nameController = TextEditingController();
+    final descController = TextEditingController();
+    final targetController = TextEditingController();
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: BrutalColors.bg,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (context) {
+        return Padding(
+          padding: EdgeInsets.only(
+            left: 20,
+            right: 20,
+            top: 24,
+            bottom: MediaQuery.of(context).viewInsets.bottom + 24,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text('Tạo hũ tiết kiệm nhóm mới 👥', style: BrutalStyles.titleStyle(size: 20)),
+              const SizedBox(height: 8),
+              Text('Nạp tiền chung, trò chuyện & phát sinh hóa đơn tự động!',
+                  style: BrutalStyles.bodyStyle(size: 13, color: BrutalColors.grey)),
+              const SizedBox(height: 16),
+              BrutalInput(
+                label: 'Tên hũ nhóm',
+                hint: 'Ví dụ: Quỹ du lịch Đà Nẵng, Quỹ tiết kiệm nhóm...',
+                controller: nameController,
+              ),
+              const SizedBox(height: 12),
+              BrutalInput(
+                label: 'Mô tả ngắn (không bắt buộc)',
+                hint: 'Dành cho nhóm bạn thân',
+                controller: descController,
+              ),
+              const SizedBox(height: 12),
+              BrutalCurrencyInput(
+                label: 'Mục tiêu tài chính (VNĐ)',
+                hint: '10.000.000',
+                controller: targetController,
+              ),
+              const SizedBox(height: 24),
+              BrutalButton(
+                text: 'TẠO HŨ NHÓM',
+                color: BrutalColors.purple,
+                onTap: () async {
+                  final name = nameController.text.trim();
+                  final target = targetController.rawValue;
+                  if (name.isNotEmpty) {
+                    try {
+                      await _apiClient.post('group-jars', data: {
+                        'name': name,
+                        'description': descController.text.trim(),
+                        'targetAmount': target,
+                        'color': '#A5A6F6',
+                        'icon': 'group',
+                      });
+                      _fetchGroupJars();
+                      if (mounted) Navigator.pop(context);
+                    } catch (_) {}
+                  }
+                },
+              ),
+            ],
+          ),
+        );
+      },
+    );
   }
 
   Future<void> _fetchLimits() async {
@@ -1213,94 +1323,189 @@ class _WalletScreenState extends State<WalletScreen>
   }
 
   Widget _buildJarsTab() {
-    if (_jars.isEmpty) {
-      return _buildEmptyState('Không tìm thấy hũ tài chính.');
-    }
-    return ListView.builder(
-      itemCount: _jars.length,
+    return ListView(
       padding: const EdgeInsets.all(16),
-      itemBuilder: (context, index) {
-        final jar = _jars[index];
-        final balance = (jar['balance'] ?? 0.0).toDouble();
-        final percentage =
-            jar['percentage'] ?? _estimateJarPercentage(jar['name'] ?? '');
+      children: [
+        // Group Savings Jars Section Header
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text('👥 HŨ TIẾT KIỆM NHÓM',
+                style: BrutalStyles.titleStyle(size: 16)),
+            BrutalButton(
+              text: '+ TẠO HŨ NHÓM',
+              isFullWidth: false,
+              color: BrutalColors.purple,
+              onTap: _showCreateGroupJarDialog,
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
 
-        return Padding(
-          padding: const EdgeInsets.only(bottom: 12),
-          child: BrutalCard(
-            color: BrutalColors.cardBg,
+        if (_groupJars.isEmpty)
+          Container(
+            padding: const EdgeInsets.all(16),
+            margin: const EdgeInsets.only(bottom: 20),
+            decoration: BrutalStyles.cardDecoration(color: BrutalColors.cardBg),
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Expanded(
-                      child: Text(
-                        jar['name'] ?? 'Hũ tài chính',
-                        style: BrutalStyles.bodyStyle(
-                            size: 15, weight: FontWeight.w800),
-                      ),
-                    ),
-                    Row(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 10, vertical: 4),
-                          decoration: BoxDecoration(
-                            color: BrutalColors.purple,
-                            border: BrutalStyles.border,
-                            borderRadius: BorderRadius.circular(9999),
+                Text('Chưa có hũ tiết kiệm nhóm nào.',
+                    style: BrutalStyles.bodyStyle(size: 13, color: BrutalColors.grey)),
+                const SizedBox(height: 8),
+                Text('Tạo hũ nhóm để cùng mời bạn bè nạp tiền & chat trực tiếp!',
+                    textAlign: TextAlign.center,
+                    style: BrutalStyles.bodyStyle(size: 12, color: BrutalColors.purple, weight: FontWeight.w700)),
+              ],
+            ),
+          )
+        else
+          ..._groupJars.map((gJar) {
+            final gId = (gJar['id'] ?? '').toString();
+            final gName = (gJar['name'] ?? 'Hũ nhóm').toString();
+            final currentBal = (gJar['currentBalance'] as num?)?.toDouble() ?? 0.0;
+            final targetAmt = (gJar['targetAmount'] as num?)?.toDouble() ?? 0.0;
+            final memberCount = (gJar['memberCount'] as num?)?.toInt() ?? 1;
+
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: GestureDetector(
+                onTap: () => GoRouter.of(context).go('/group-jars/$gId'),
+                child: BrutalCard(
+                  color: BrutalColors.cardBg,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Row(
+                            children: [
+                              CircleAvatar(
+                                radius: 16,
+                                backgroundColor: BrutalColors.purple,
+                                child: Icon(Icons.group, size: 18, color: Colors.white),
+                              ),
+                              const SizedBox(width: 10),
+                              Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(gName, style: BrutalStyles.bodyStyle(size: 16, weight: FontWeight.w800)),
+                                  Text('$memberCount thành viên',
+                                      style: BrutalStyles.bodyStyle(size: 11, color: BrutalColors.grey)),
+                                ],
+                              ),
+                            ],
                           ),
+                          Icon(Icons.arrow_forward_ios, size: 16, color: BrutalColors.ink),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text('Số dư: ${_formatCurrency(currentBal)}',
+                              style: BrutalStyles.bodyStyle(size: 14, weight: FontWeight.w700)),
+                          Text('Mục tiêu: ${_formatCurrency(targetAmt)}',
+                              style: BrutalStyles.bodyStyle(size: 12, color: BrutalColors.grey)),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          }).toList(),
+
+        const SizedBox(height: 16),
+        Text('📦 HŨ TÀI CHÍNH CÁ NHÂN (6 HŨ)',
+            style: BrutalStyles.titleStyle(size: 16)),
+        const SizedBox(height: 12),
+
+        if (_jars.isEmpty)
+          _buildEmptyState('Không tìm thấy hũ tài chính cá nhân.')
+        else
+          ..._jars.map((jar) {
+            final balance = (jar['balance'] ?? 0.0).toDouble();
+            final percentage =
+                jar['percentage'] ?? _estimateJarPercentage(jar['name'] ?? '');
+
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: BrutalCard(
+                color: BrutalColors.cardBg,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Expanded(
                           child: Text(
-                            '$percentage%',
+                            jar['name'] ?? 'Hũ tài chính',
                             style: BrutalStyles.bodyStyle(
-                                size: 12, weight: FontWeight.w800),
+                                size: 15, weight: FontWeight.w800),
                           ),
                         ),
-                        const SizedBox(width: 8),
-                        IconButton(
-                          icon: Icon(Icons.edit_outlined,
-                              color: BrutalColors.ink, size: 20),
-                          padding: EdgeInsets.zero,
-                          constraints: const BoxConstraints(),
-                          onPressed: () => _showEditJarDialog(jar),
+                        Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 10, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: BrutalColors.purple,
+                                border: BrutalStyles.border,
+                                borderRadius: BorderRadius.circular(9999),
+                              ),
+                              child: Text(
+                                '$percentage%',
+                                style: BrutalStyles.bodyStyle(
+                                    size: 12, weight: FontWeight.w800),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            IconButton(
+                              icon: Icon(Icons.edit_outlined,
+                                  color: BrutalColors.ink, size: 20),
+                              padding: EdgeInsets.zero,
+                              constraints: const BoxConstraints(),
+                              onPressed: () => _showEditJarDialog(jar),
+                            ),
+                          ],
                         ),
                       ],
                     ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                Text(
-                  'Số dư: ${_formatCurrency(balance)}',
-                  style:
-                      BrutalStyles.bodyStyle(size: 14, weight: FontWeight.w700),
-                ),
-                const SizedBox(height: 8),
-                // visual bar
-                Container(
-                  height: 12,
-                  decoration: BoxDecoration(
-                    color: BrutalColors.bg,
-                    border: BrutalStyles.border,
-                    borderRadius: BorderRadius.circular(9999),
-                  ),
-                  child: FractionallySizedBox(
-                    alignment: Alignment.centerLeft,
-                    widthFactor: (percentage / 100).clamp(0.0, 1.0),
-                    child: Container(
+                    const SizedBox(height: 12),
+                    Text(
+                      'Số dư: ${_formatCurrency(balance)}',
+                      style:
+                          BrutalStyles.bodyStyle(size: 14, weight: FontWeight.w700),
+                    ),
+                    const SizedBox(height: 8),
+                    // visual bar
+                    Container(
+                      height: 12,
                       decoration: BoxDecoration(
-                        color: BrutalColors.green,
+                        color: BrutalColors.bg,
+                        border: BrutalStyles.border,
                         borderRadius: BorderRadius.circular(9999),
                       ),
+                      child: FractionallySizedBox(
+                        alignment: Alignment.centerLeft,
+                        widthFactor: (percentage / 100).clamp(0.0, 1.0),
+                        child: Container(
+                          decoration: BoxDecoration(
+                            color: BrutalColors.green,
+                            borderRadius: BorderRadius.circular(9999),
+                          ),
+                        ),
+                      ),
                     ),
-                  ),
+                  ],
                 ),
-              ],
-            ),
-          ),
-        );
-      },
+              ),
+            );
+          }).toList(),
+      ],
     );
   }
 
