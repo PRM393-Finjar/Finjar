@@ -776,6 +776,7 @@ class _WalletScreenState extends State<WalletScreen> with SingleTickerProviderSt
           floatingActionButton: activeIndex == 1
               ? null // No FAB for preset 6-Jars allocations
               : FloatingActionButton(
+                  heroTag: 'wallet_fab',
                   onPressed: activeIndex == 0 ? _showAddAccountDialog : _showAddLimitDialog,
                   backgroundColor: BrutalColors.green,
                   shape: RoundedRectangleBorder(

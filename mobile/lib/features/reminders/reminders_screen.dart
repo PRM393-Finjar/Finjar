@@ -527,6 +527,7 @@ class _RemindersScreenState extends State<RemindersScreen> {
                   },
                 ),
       floatingActionButton: FloatingActionButton(
+        heroTag: 'reminders_fab',
         onPressed: _showAddReminderDialog,
         backgroundColor: BrutalColors.green,
         shape: RoundedRectangleBorder(

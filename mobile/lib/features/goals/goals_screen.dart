@@ -413,6 +413,7 @@ class _GoalsScreenState extends State<GoalsScreen> {
                   },
                 ),
       floatingActionButton: FloatingActionButton(
+        heroTag: 'goals_fab',
         onPressed: _showAddGoalDialog,
         backgroundColor: BrutalColors.green,
         shape: RoundedRectangleBorder(

@@ -403,6 +403,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
             ],
           ),
           floatingActionButton: FloatingActionButton(
+            heroTag: 'transactions_fab',
             onPressed: _showAddTransactionDialog,
             backgroundColor: BrutalColors.green,
             shape: RoundedRectangleBorder(

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:dio/dio.dart';
 import 'package:finjar_mobile/core/theme/brutal_theme.dart';
 import 'package:finjar_mobile/core/storage/secure_storage.dart';
 import 'package:finjar_mobile/core/network/api_client.dart';
@@ -15,6 +16,7 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
   late TabController _tabController;
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
+  final _confirmPasswordController = TextEditingController();
   final _nameController = TextEditingController();
   final _usernameController = TextEditingController();
 
@@ -33,6 +35,7 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
     _tabController.dispose();
     _emailController.dispose();
     _passwordController.dispose();
+    _confirmPasswordController.dispose();
     _nameController.dispose();
     _usernameController.dispose();
     super.dispose();
@@ -59,8 +62,15 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
         }
       }
     } catch (e) {
+      String msg = 'Đăng nhập thất bại. Vui lòng kiểm tra lại tài khoản và mật khẩu.';
+      if (e is DioException && e.response?.data != null) {
+        final data = e.response!.data;
+        if (data is Map && data['message'] != null) {
+          msg = data['message'].toString();
+        }
+      }
       setState(() {
-        _errorMessage = 'Đăng nhập thất bại. Vui lòng kiểm tra lại tài khoản và mật khẩu.';
+        _errorMessage = msg;
       });
     } finally {
       setState(() {
@@ -70,25 +80,57 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
   }
 
   Future<void> _handleRegister() async {
+    final name = _nameController.text.trim();
+    final email = _emailController.text.trim();
+    final password = _passwordController.text;
+    final confirmPassword = _confirmPasswordController.text;
+
+    if (name.isEmpty) {
+      setState(() {
+        _errorMessage = 'Vui lòng nhập Họ và tên.';
+      });
+      return;
+    }
+
+    if (email.isEmpty || !email.contains('@')) {
+      setState(() {
+        _errorMessage = 'Vui lòng nhập địa chỉ Email hợp lệ.';
+      });
+      return;
+    }
+
+    if (password.isEmpty || confirmPassword.isEmpty) {
+      setState(() {
+        _errorMessage = 'Vui lòng nhập đầy đủ mật khẩu và xác nhận mật khẩu.';
+      });
+      return;
+    }
+
+    if (password != confirmPassword) {
+      setState(() {
+        _errorMessage = 'Mật khẩu xác nhận không khớp. Vui lòng kiểm tra lại.';
+      });
+      return;
+    }
+
     setState(() {
       _isLoading = true;
       _errorMessage = null;
     });
 
     try {
-      final name = _nameController.text.trim();
-      List<String> nameParts = name.split(' ');
-      String lastName = nameParts.isNotEmpty ? nameParts[0] : 'User';
-      String firstName = nameParts.length > 1 ? nameParts.sublist(1).join(' ') : 'Name';
+      List<String> nameParts = name.split(RegExp(r'\s+'));
+      String lastName = nameParts.isNotEmpty && nameParts[0].isNotEmpty ? nameParts[0] : name;
+      String firstName = nameParts.length > 1 ? nameParts.sublist(1).join(' ') : lastName;
       String username = _usernameController.text.trim();
       if (username.isEmpty) {
-        username = _emailController.text.split('@')[0];
+        username = email;
       }
 
       final response = await _apiClient.post('auth/register', data: {
         'username': username,
-        'email': _emailController.text.trim(),
-        'password': _passwordController.text,
+        'email': email,
+        'password': password,
         'firstName': firstName,
         'lastName': lastName,
       });
@@ -96,6 +138,7 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
       if (response.statusCode == 200 || response.statusCode == 201) {
         // Clear password and personal details, keeping the email pre-filled
         _passwordController.clear();
+        _confirmPasswordController.clear();
         _nameController.clear();
         _usernameController.clear();
         // Switch to login tab
@@ -105,8 +148,39 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
         );
       }
     } catch (e) {
+      String msg = 'Đăng ký thất bại.';
+      if (e is DioException) {
+        if (e.response?.data != null) {
+          final data = e.response!.data;
+          if (data is Map) {
+            final serverMsg = (data['message'] ?? data['error'] ?? '').toString();
+            if (serverMsg.toLowerCase().contains('email already exists')) {
+              msg = 'Email này đã được đăng ký. Vui lòng dùng email khác hoặc đăng nhập.';
+            } else if (serverMsg.toLowerCase().contains('username already exists')) {
+              msg = 'Tên đăng nhập đã tồn tại. Vui lòng chọn tên khác.';
+            } else if (serverMsg.isNotEmpty) {
+              msg = serverMsg;
+            } else {
+              msg = 'Lỗi dữ liệu gửi lên máy chủ.';
+            }
+            if (data['details'] != null) {
+              final details = data['details'];
+              if (details is List && details.isNotEmpty) {
+                final errs = details.map((d) => d is Map ? (d['error'] ?? d['message'] ?? d.toString()) : d.toString()).join(', ');
+                msg = '$msg ($errs)';
+              }
+            }
+          } else {
+            msg = data.toString();
+          }
+        } else {
+          msg = 'Không thể kết nối đến máy chủ API (${e.message})';
+        }
+      } else {
+        msg = '$e';
+      }
       setState(() {
-        _errorMessage = 'Đăng ký thất bại. Email đã tồn tại hoặc không hợp lệ.';
+        _errorMessage = msg;
       });
     } finally {
       setState(() {
@@ -170,69 +244,82 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
               // Card containing inputs
               BrutalCard(
                 child: SizedBox(
-                  height: 320,
+                  height: 440,
                   child: TabBarView(
                     controller: _tabController,
                     children: [
                       // Login flow
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          BrutalInput(
-                            label: 'Email / Tên đăng nhập',
-                            hint: 'user@example.com',
-                            controller: _emailController,
-                            keyboardType: TextInputType.emailAddress,
-                          ),
-                          const SizedBox(height: 16),
-                          BrutalInput(
-                            label: 'Mật khẩu',
-                            hint: '••••••••',
-                            controller: _passwordController,
-                            obscureText: true,
-                          ),
-                          const Spacer(),
-                          _isLoading
-                              ? Center(child: CircularProgressIndicator(color: BrutalColors.ink))
-                              : BrutalButton(
-                                  text: 'ĐĂNG NHẬP',
-                                  onTap: _handleLogin,
-                                  color: BrutalColors.green,
-                                ),
-                        ],
+                      SingleChildScrollView(
+                        physics: const BouncingScrollPhysics(),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            BrutalInput(
+                              label: 'Email / Tên đăng nhập',
+                              hint: 'user@example.com',
+                              controller: _emailController,
+                              keyboardType: TextInputType.emailAddress,
+                            ),
+                            const SizedBox(height: 16),
+                            BrutalInput(
+                              label: 'Mật khẩu',
+                              hint: '••••••••',
+                              controller: _passwordController,
+                              obscureText: true,
+                            ),
+                            const SizedBox(height: 32),
+                            _isLoading
+                                ? Center(child: CircularProgressIndicator(color: BrutalColors.ink))
+                                : BrutalButton(
+                                    text: 'ĐĂNG NHẬP',
+                                    onTap: _handleLogin,
+                                    color: BrutalColors.green,
+                                  ),
+                          ],
+                        ),
                       ),
                       // Register flow
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          BrutalInput(
-                            label: 'Họ và tên',
-                            hint: 'Nguyễn Văn A',
-                            controller: _nameController,
-                          ),
-                          const SizedBox(height: 12),
-                          BrutalInput(
-                            label: 'Email',
-                            hint: 'user@example.com',
-                            controller: _emailController,
-                            keyboardType: TextInputType.emailAddress,
-                          ),
-                          const SizedBox(height: 12),
-                          BrutalInput(
-                            label: 'Mật khẩu',
-                            hint: '••••••••',
-                            controller: _passwordController,
-                            obscureText: true,
-                          ),
-                          const Spacer(),
-                          _isLoading
-                              ? Center(child: CircularProgressIndicator(color: BrutalColors.ink))
-                              : BrutalButton(
-                                  text: 'ĐĂNG KÝ',
-                                  onTap: _handleRegister,
-                                  color: BrutalColors.purple,
-                                ),
-                        ],
+                      SingleChildScrollView(
+                        physics: const BouncingScrollPhysics(),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            BrutalInput(
+                              label: 'Họ và tên',
+                              hint: 'Nguyễn Văn A',
+                              controller: _nameController,
+                            ),
+                            const SizedBox(height: 12),
+                            BrutalInput(
+                              label: 'Email',
+                              hint: 'user@example.com',
+                              controller: _emailController,
+                              keyboardType: TextInputType.emailAddress,
+                            ),
+                            const SizedBox(height: 12),
+                            BrutalInput(
+                              label: 'Mật khẩu',
+                              hint: '••••••••',
+                              controller: _passwordController,
+                              obscureText: true,
+                            ),
+                            const SizedBox(height: 12),
+                            BrutalInput(
+                              label: 'Xác nhận mật khẩu',
+                              hint: '••••••••',
+                              controller: _confirmPasswordController,
+                              obscureText: true,
+                            ),
+                            const SizedBox(height: 20),
+                            _isLoading
+                                ? Center(child: CircularProgressIndicator(color: BrutalColors.ink))
+                                : BrutalButton(
+                                    text: 'ĐĂNG KÝ',
+                                    onTap: _handleRegister,
+                                    color: BrutalColors.purple,
+                                  ),
+                          ],
+                        ),
                       ),
                     ],
                   ),
