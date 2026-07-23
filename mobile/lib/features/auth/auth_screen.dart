@@ -144,7 +144,7 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
       String firstName = nameParts.length > 1 ? nameParts.sublist(1).join(' ') : 'Name';
       String username = _usernameController.text.trim();
       if (username.isEmpty) {
-        username = _emailController.text.split('@')[0];
+        username = _emailController.text.trim();
       }
 
       final response = await _apiClient.post('auth/register', data: {
@@ -183,8 +183,30 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
         }
       }
     } catch (e) {
+      String msg = 'Đăng ký thất bại.';
+      if (e is DioException) {
+        if (e.response?.data != null) {
+          final data = e.response!.data;
+          if (data is Map) {
+            final serverMsg = (data['message'] ?? data['error'] ?? '').toString();
+            if (serverMsg.toLowerCase().contains('email already exists')) {
+              msg = 'Email này đã được đăng ký. Vui lòng dùng email khác hoặc đăng nhập.';
+            } else if (serverMsg.toLowerCase().contains('username already exists')) {
+              msg = 'Tên đăng nhập đã tồn tại. Vui lòng chọn tên khác.';
+            } else if (serverMsg.isNotEmpty) {
+              msg = serverMsg;
+            }
+          } else {
+            msg = data.toString();
+          }
+        } else {
+          msg = 'Không kết nối được máy chủ (${e.message})';
+        }
+      } else {
+        msg = '$e';
+      }
       setState(() {
-        _errorMessage = 'Đăng ký thất bại. Email đã tồn tại hoặc không hợp lệ.';
+        _errorMessage = msg;
       });
     } finally {
       setState(() {

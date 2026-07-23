@@ -15,6 +15,7 @@ import 'package:finjar_mobile/features/categories/categories_screen.dart';
 import 'package:finjar_mobile/features/goals/goals_screen.dart';
 import 'package:finjar_mobile/features/notifications/notifications_screen.dart';
 import 'package:finjar_mobile/features/reminders/reminders_screen.dart';
+import 'package:finjar_mobile/features/jars/group_jar_detail_screen.dart';
 
 final GlobalKey<NavigatorState> _rootNavigatorKey =
     GlobalKey<NavigatorState>(debugLabel: 'root');
@@ -144,6 +145,12 @@ final GoRouter appRouter = GoRouter(
     GoRoute(
       path: '/reminders',
       builder: (context, state) => const RemindersScreen(),
+    ),
+    GoRoute(
+      path: '/group-jars/:id',
+      builder: (context, state) => GroupJarDetailScreen(
+        groupJarId: state.pathParameters['id'] ?? '',
+      ),
     ),
   ],
 );

@@ -32,6 +32,10 @@ public class AppDbContext : DbContext
     public DbSet<PendingRegistration> PendingRegistrations { get; set; }
     public DbSet<SubscriptionPayment> SubscriptionPayments { get; set; }
 
+    public DbSet<GroupJar> GroupJars { get; set; }
+    public DbSet<GroupJarMember> GroupJarMembers { get; set; }
+    public DbSet<GroupJarMessage> GroupJarMessages { get; set; }
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
