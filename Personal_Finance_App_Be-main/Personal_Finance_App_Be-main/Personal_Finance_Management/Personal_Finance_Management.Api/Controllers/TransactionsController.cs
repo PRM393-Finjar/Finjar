@@ -59,4 +59,13 @@ public class TransactionsController : ControllerBase
         var result = await _service.ProcessCassoWebhook(request, secureToken, cassoSignature);
         return Ok(result);
     }
+
+    [AllowAnonymous]
+    [HttpPost("SePay")]
+    public async Task<IActionResult> ProcessSePayWebhook([FromBody] Request.SePayWebhookRequest request)
+    {
+        var authorization = Request.Headers.Authorization.FirstOrDefault();
+        var result = await _service.ProcessSePayWebhook(request, authorization);
+        return Ok(result);
+    }
 }

@@ -52,7 +52,7 @@ const formatCurrency = (amount: number, currency = "VND") =>
   }).format(amount);
 
 function connectionLabel(mode: string) {
-  if (mode === "LinkedApi") return "Liên kết API (Casso)";
+  if (mode === "LinkedApi") return "Liên kết API (SePay)";
   if (mode === "Manual") return "Thủ công";
   return mode;
 }
@@ -176,10 +176,10 @@ export function AccountsPage() {
     }
   };
 
-  const onSyncCasso = () => {
-    toast.message("Đồng bộ Casso", {
+  const onSyncSePay = () => {
+    toast.message("Đồng bộ SePay", {
       description:
-        "API đồng bộ chưa được nối trên FE. Dùng dashboard nhà cung cấp hoặc chờ endpoint sync.",
+        "Webhook SePay sẽ tự cập nhật khi có biến động số dư.",
     });
   };
 
@@ -210,7 +210,7 @@ export function AccountsPage() {
       <BrutalPageHeader
         eyebrow="Tài khoản"
         title="Nguồn tiền"
-        description="Tài khoản thủ công và liên kết ngân hàng (Casso)."
+        description="Tài khoản thủ công và liên kết ngân hàng qua SePay."
         actions={
           <>
             <Button
@@ -325,10 +325,10 @@ export function AccountsPage() {
                       variant="outline"
                       size="sm"
                       className="cursor-pointer gap-1.5 brutal-btn-outline"
-                      onClick={onSyncCasso}
+                      onClick={onSyncSePay}
                     >
                       <RefreshCw className="h-3.5 w-3.5" />
-                      Sync Casso
+                      Sync SePay
                     </Button>
                   ) : null}
                   {a.isActive ? (

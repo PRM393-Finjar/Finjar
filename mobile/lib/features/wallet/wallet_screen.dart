@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:finjar_mobile/core/theme/brutal_theme.dart';
 import 'package:finjar_mobile/core/network/api_client.dart';
-import 'package:intl/intl.dart';
 import 'package:finjar_mobile/core/theme/app_settings.dart';
 import 'package:finjar_mobile/core/theme/currency_input.dart';
 
@@ -13,7 +12,14 @@ class WalletScreen extends StatefulWidget {
   State<WalletScreen> createState() => _WalletScreenState();
 }
 
-class _WalletScreenState extends State<WalletScreen> with SingleTickerProviderStateMixin {
+class _WalletScreenState extends State<WalletScreen>
+    with SingleTickerProviderStateMixin {
+  static const List<Map<String, String>> _sePayBanks = [
+    {'code': 'VCB', 'name': 'Vietcombank'},
+    {'code': 'MB', 'name': 'MB Bank'},
+    {'code': 'TCB', 'name': 'Techcombank'},
+  ];
+
   late TabController _tabController;
   final _apiClient = ApiClient();
   bool _isLoading = false;
@@ -123,8 +129,10 @@ class _WalletScreenState extends State<WalletScreen> with SingleTickerProviderSt
       final data = response.data;
       List<dynamic> combined = [];
       if (data is Map) {
-        final defaultCats = data['defaultCategories'] ?? data['DefaultCategories'] ?? [];
-        final customCats = data['customCategories'] ?? data['CustomCategories'] ?? [];
+        final defaultCats =
+            data['defaultCategories'] ?? data['DefaultCategories'] ?? [];
+        final customCats =
+            data['customCategories'] ?? data['CustomCategories'] ?? [];
         combined.addAll(defaultCats);
         combined.addAll(customCats);
       } else if (data is List) {
@@ -159,6 +167,36 @@ class _WalletScreenState extends State<WalletScreen> with SingleTickerProviderSt
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Không thể tạo tài khoản. Hãy thử lại.')),
       );
+    }
+  }
+
+  Future<void> _connectSePayAccount({
+    required String bankCode,
+    required String accountNumber,
+    required String accountName,
+  }) async {
+    try {
+      await _apiClient.post('financial-accounts/sepay/connect', data: {
+        'providerCode': 'SEPAY',
+        'bankCode': bankCode,
+        'accountNumber': accountNumber,
+        'accountName': accountName,
+      });
+      _fetchAccounts();
+      AppSettings().triggerDashboardRefresh();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Lien ket SePay thanh cong!')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+              content:
+                  Text('Khong the lien ket SePay. Kiem tra so tai khoan.')),
+        );
+      }
     }
   }
 
@@ -200,7 +238,10 @@ class _WalletScreenState extends State<WalletScreen> with SingleTickerProviderSt
               onPressed: () => Navigator.pop(context),
               child: Text(
                 'Hủy',
-                style: BrutalStyles.bodyStyle(size: 14, weight: FontWeight.w700, color: BrutalColors.grey),
+                style: BrutalStyles.bodyStyle(
+                    size: 14,
+                    weight: FontWeight.w700,
+                    color: BrutalColors.grey),
               ),
             ),
             BrutalButton(
@@ -263,14 +304,17 @@ class _WalletScreenState extends State<WalletScreen> with SingleTickerProviderSt
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Text('Thêm tài khoản mới 💳', style: BrutalStyles.titleStyle(size: 20)),
+                  Text('Thêm tài khoản mới 💳',
+                      style: BrutalStyles.titleStyle(size: 20)),
                   const SizedBox(height: 16),
                   Row(
                     children: [
                       Expanded(
                         child: BrutalButton(
                           text: 'Tiền mặt',
-                          color: type == 'cash' ? BrutalColors.green : BrutalColors.cardBg,
+                          color: type == 'cash'
+                              ? BrutalColors.green
+                              : BrutalColors.cardBg,
                           onTap: () {
                             setModalState(() {
                               type = 'cash';
@@ -282,7 +326,9 @@ class _WalletScreenState extends State<WalletScreen> with SingleTickerProviderSt
                       Expanded(
                         child: BrutalButton(
                           text: 'Tiết kiệm',
-                          color: type == 'saving' ? BrutalColors.purple : BrutalColors.cardBg,
+                          color: type == 'saving'
+                              ? BrutalColors.purple
+                              : BrutalColors.cardBg,
                           onTap: () {
                             setModalState(() {
                               type = 'saving';
@@ -326,9 +372,205 @@ class _WalletScreenState extends State<WalletScreen> with SingleTickerProviderSt
     );
   }
 
+  void _showAddAccountWithSePayDialog() {
+    final nameController = TextEditingController();
+    final balanceController = TextEditingController();
+    final sePayAccountNumberController = TextEditingController();
+    final sePayAccountNameController = TextEditingController();
+    String type = 'cash';
+    String sePayBankCode = _sePayBanks.first['code']!;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: BrutalColors.bg,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            return SingleChildScrollView(
+              padding: EdgeInsets.only(
+                left: 20,
+                right: 20,
+                top: 24,
+                bottom: MediaQuery.of(context).viewInsets.bottom + 24,
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text('Them tai khoan moi',
+                      style: BrutalStyles.titleStyle(size: 20)),
+                  const SizedBox(height: 16),
+                  Wrap(
+                    spacing: 12,
+                    runSpacing: 12,
+                    children: [
+                      SizedBox(
+                        width: 150,
+                        child: BrutalButton(
+                          text: 'Tien mat',
+                          color: type == 'cash'
+                              ? BrutalColors.green
+                              : BrutalColors.cardBg,
+                          onTap: () => setModalState(() => type = 'cash'),
+                        ),
+                      ),
+                      SizedBox(
+                        width: 150,
+                        child: BrutalButton(
+                          text: 'Tiet kiem',
+                          color: type == 'saving'
+                              ? BrutalColors.purple
+                              : BrutalColors.cardBg,
+                          onTap: () => setModalState(() => type = 'saving'),
+                        ),
+                      ),
+                      SizedBox(
+                        width: 150,
+                        child: BrutalButton(
+                          text: 'SePay',
+                          color: type == 'sepay'
+                              ? BrutalColors.info
+                              : BrutalColors.cardBg,
+                          onTap: () => setModalState(() => type = 'sepay'),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  if (type == 'sepay') ...[
+                    _buildSePayBankDropdown(
+                      value: sePayBankCode,
+                      onChanged: (value) {
+                        if (value == null) return;
+                        setModalState(() => sePayBankCode = value);
+                      },
+                    ),
+                    const SizedBox(height: 12),
+                    BrutalInput(
+                      label: 'So tai khoan ngan hang',
+                      hint: 'Vi du: 0964929963',
+                      controller: sePayAccountNumberController,
+                      keyboardType: TextInputType.number,
+                    ),
+                    const SizedBox(height: 12),
+                    BrutalInput(
+                      label: 'Ten chu tai khoan',
+                      hint: 'Vi du: Anh Viet',
+                      controller: sePayAccountNameController,
+                      textCapitalization: TextCapitalization.words,
+                    ),
+                  ] else ...[
+                    BrutalInput(
+                      label: 'Ten tai khoan / Ngan hang',
+                      hint: 'Vi du: Vietcombank, Vi ca nhan...',
+                      controller: nameController,
+                    ),
+                    const SizedBox(height: 12),
+                    BrutalCurrencyInput(
+                      label: 'So du ban dau',
+                      hint: '1.000.000',
+                      controller: balanceController,
+                    ),
+                  ],
+                  const SizedBox(height: 24),
+                  BrutalButton(
+                    text: type == 'sepay' ? 'LIEN KET SEPAY' : 'TAO TAI KHOAN',
+                    color: BrutalColors.green,
+                    onTap: () async {
+                      if (type == 'sepay') {
+                        final accountNumber =
+                            sePayAccountNumberController.text.trim();
+                        final accountName =
+                            sePayAccountNameController.text.trim();
+                        if (accountNumber.isEmpty || accountName.isEmpty) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                                content: Text(
+                                    'Nhap day du so tai khoan va ten chu tai khoan.')),
+                          );
+                          return;
+                        }
+                        await _connectSePayAccount(
+                          bankCode: sePayBankCode,
+                          accountNumber: accountNumber,
+                          accountName: accountName,
+                        );
+                        if (mounted) Navigator.pop(context);
+                        return;
+                      }
+
+                      final name = nameController.text.trim();
+                      final balance = balanceController.rawValue;
+                      if (name.isEmpty) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Nhap ten tai khoan.')),
+                        );
+                        return;
+                      }
+                      await _addAccount(name, type, balance);
+                      if (mounted) Navigator.pop(context);
+                    },
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildSePayBankDropdown({
+    required String value,
+    required ValueChanged<String?> onChanged,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Ngan hang',
+          style: BrutalStyles.bodyStyle(size: 14, weight: FontWeight.w700),
+        ),
+        const SizedBox(height: 6),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          decoration: BoxDecoration(
+            color: BrutalColors.cardBg,
+            border: BrutalStyles.border,
+            borderRadius: BorderRadius.circular(12),
+            boxShadow: [BrutalStyles.shadowSm],
+          ),
+          child: DropdownButtonHideUnderline(
+            child: DropdownButton<String>(
+              value: value,
+              isExpanded: true,
+              icon: Icon(Icons.keyboard_arrow_down, color: BrutalColors.ink),
+              style: BrutalStyles.bodyStyle(size: 14, weight: FontWeight.w700),
+              dropdownColor: BrutalColors.cardBg,
+              onChanged: onChanged,
+              items: _sePayBanks
+                  .map(
+                    (bank) => DropdownMenuItem<String>(
+                      value: bank['code'],
+                      child: Text('${bank['name']} (${bank['code']})'),
+                    ),
+                  )
+                  .toList(),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
   void _showEditAccountDialog(dynamic acc) {
     final editNameController = TextEditingController(text: acc['name']);
-    final initialBalance = (acc['balance'] ?? acc['currentBalance'] ?? 0.0).toDouble();
+    final initialBalance =
+        (acc['balance'] ?? acc['currentBalance'] ?? 0.0).toDouble();
     final editBalanceController = TextEditingController(
       text: initialBalance.toInt().toString(),
     );
@@ -352,7 +594,8 @@ class _WalletScreenState extends State<WalletScreen> with SingleTickerProviderSt
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Text('Chỉnh sửa tài khoản 💳', style: BrutalStyles.titleStyle(size: 20)),
+              Text('Chỉnh sửa tài khoản 💳',
+                  style: BrutalStyles.titleStyle(size: 20)),
               const SizedBox(height: 16),
               BrutalInput(
                 label: 'Tên tài khoản / Ngân hàng',
@@ -420,7 +663,8 @@ class _WalletScreenState extends State<WalletScreen> with SingleTickerProviderSt
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Text('Đổi tên hũ tài chính 🏷️', style: BrutalStyles.titleStyle(size: 20)),
+              Text('Đổi tên hũ tài chính 🏷️',
+                  style: BrutalStyles.titleStyle(size: 20)),
               const SizedBox(height: 16),
               BrutalInput(
                 label: 'Tên hũ mới',
@@ -447,7 +691,8 @@ class _WalletScreenState extends State<WalletScreen> with SingleTickerProviderSt
   }
 
   // --- Limit CRUD operations ---
-  Future<void> _addLimit(String categoryId, double limitAmt, double alertPercentage) async {
+  Future<void> _addLimit(
+      String categoryId, double limitAmt, double alertPercentage) async {
     try {
       await _apiClient.post('limits', data: {
         'targetType': 'category',
@@ -467,7 +712,8 @@ class _WalletScreenState extends State<WalletScreen> with SingleTickerProviderSt
     }
   }
 
-  Future<void> _updateLimit(String id, double limitAmt, double alertPercentage) async {
+  Future<void> _updateLimit(
+      String id, double limitAmt, double alertPercentage) async {
     try {
       await _apiClient.patch('limits/$id', data: {
         'limitAmount': limitAmt,
@@ -504,7 +750,10 @@ class _WalletScreenState extends State<WalletScreen> with SingleTickerProviderSt
               onPressed: () => Navigator.pop(context),
               child: Text(
                 'Hủy',
-                style: BrutalStyles.bodyStyle(size: 14, weight: FontWeight.w700, color: BrutalColors.grey),
+                style: BrutalStyles.bodyStyle(
+                    size: 14,
+                    weight: FontWeight.w700,
+                    color: BrutalColors.grey),
               ),
             ),
             BrutalButton(
@@ -541,7 +790,8 @@ class _WalletScreenState extends State<WalletScreen> with SingleTickerProviderSt
   }
 
   void _showAddLimitDialog() {
-    String? selectedCategoryId = _categories.isNotEmpty ? _categories.first['id'] : null;
+    String? selectedCategoryId =
+        _categories.isNotEmpty ? _categories.first['id'] : null;
     final limitAmountController = TextEditingController();
     final alertController = TextEditingController(text: '80');
 
@@ -566,11 +816,14 @@ class _WalletScreenState extends State<WalletScreen> with SingleTickerProviderSt
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Text('Thêm hạn mức chi tiêu mới ⚠️', style: BrutalStyles.titleStyle(size: 20)),
+                  Text('Thêm hạn mức chi tiêu mới ⚠️',
+                      style: BrutalStyles.titleStyle(size: 20)),
                   const SizedBox(height: 16),
-                  Text('Chọn danh mục chi tiêu', style: BrutalStyles.bodyStyle(size: 14, weight: FontWeight.w700)),
+                  Text('Chọn danh mục chi tiêu',
+                      style: BrutalStyles.bodyStyle(
+                          size: 14, weight: FontWeight.w700)),
                   const SizedBox(height: 6),
-                   Container(
+                  Container(
                     padding: const EdgeInsets.symmetric(horizontal: 16),
                     decoration: BoxDecoration(
                       color: BrutalColors.cardBg,
@@ -618,10 +871,12 @@ class _WalletScreenState extends State<WalletScreen> with SingleTickerProviderSt
                     color: BrutalColors.green,
                     onTap: () async {
                       final limitAmt = limitAmountController.rawValue;
-                      final alertPercentage = double.tryParse(alertController.text) ?? 80.0;
+                      final alertPercentage =
+                          double.tryParse(alertController.text) ?? 80.0;
 
                       if (selectedCategoryId != null && limitAmt > 0) {
-                        await _addLimit(selectedCategoryId!, limitAmt, alertPercentage);
+                        await _addLimit(
+                            selectedCategoryId!, limitAmt, alertPercentage);
                         if (mounted) Navigator.pop(context);
                       }
                     },
@@ -636,11 +891,14 @@ class _WalletScreenState extends State<WalletScreen> with SingleTickerProviderSt
   }
 
   void _showEditLimitDialog(dynamic limit) {
-    final initialLimitAmt = (limit['limitAmount'] ?? limit['LimitAmount'] ?? 0.0).toDouble();
+    final initialLimitAmt =
+        (limit['limitAmount'] ?? limit['LimitAmount'] ?? 0.0).toDouble();
     final editAmountController = TextEditingController(
       text: initialLimitAmt.toInt().toString(),
     );
-    final editAlertController = TextEditingController(text: (limit['alertAtPercentage'] ?? limit['AlertAtPercentage'] ?? 80.0).toString());
+    final editAlertController = TextEditingController(
+        text: (limit['alertAtPercentage'] ?? limit['AlertAtPercentage'] ?? 80.0)
+            .toString());
 
     showModalBottomSheet(
       context: context,
@@ -661,7 +919,8 @@ class _WalletScreenState extends State<WalletScreen> with SingleTickerProviderSt
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Text('Chỉnh sửa hạn mức chi tiêu ⚠️', style: BrutalStyles.titleStyle(size: 20)),
+              Text('Chỉnh sửa hạn mức chi tiêu ⚠️',
+                  style: BrutalStyles.titleStyle(size: 20)),
               const SizedBox(height: 16),
               BrutalCurrencyInput(
                 label: 'Số tiền giới hạn tối đa',
@@ -681,7 +940,8 @@ class _WalletScreenState extends State<WalletScreen> with SingleTickerProviderSt
                 color: BrutalColors.green,
                 onTap: () async {
                   final limitAmt = editAmountController.rawValue;
-                  final alertPercentage = double.tryParse(editAlertController.text) ?? 80.0;
+                  final alertPercentage =
+                      double.tryParse(editAlertController.text) ?? 80.0;
 
                   if (limitAmt > 0) {
                     await _updateLimit(limit['id'], limitAmt, alertPercentage);
@@ -742,7 +1002,8 @@ class _WalletScreenState extends State<WalletScreen> with SingleTickerProviderSt
           appBar: AppBar(
             backgroundColor: BrutalColors.cardBg,
             elevation: 0,
-            title: Text('Ví & Hũ Tài Chính 🎒', style: BrutalStyles.titleStyle(size: 22)),
+            title: Text('Ví & Hũ Tài Chính 🎒',
+                style: BrutalStyles.titleStyle(size: 22)),
             leading: IconButton(
               icon: Icon(Icons.arrow_back, color: BrutalColors.ink),
               onPressed: () => GoRouter.of(context).go('/dashboard'),
@@ -750,7 +1011,8 @@ class _WalletScreenState extends State<WalletScreen> with SingleTickerProviderSt
             bottom: PreferredSize(
               preferredSize: const Size.fromHeight(60),
               child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                 child: Row(
                   children: [
                     Expanded(child: _buildWalletTabChip('Tài khoản', 0)),
@@ -762,10 +1024,12 @@ class _WalletScreenState extends State<WalletScreen> with SingleTickerProviderSt
                 ),
               ),
             ),
-            shape: Border(bottom: BorderSide(color: BrutalColors.ink, width: 3)),
+            shape:
+                Border(bottom: BorderSide(color: BrutalColors.ink, width: 3)),
           ),
           body: _isLoading
-              ? Center(child: CircularProgressIndicator(color: BrutalColors.ink))
+              ? Center(
+                  child: CircularProgressIndicator(color: BrutalColors.ink))
               : TabBarView(
                   controller: _tabController,
                   children: [
@@ -781,7 +1045,9 @@ class _WalletScreenState extends State<WalletScreen> with SingleTickerProviderSt
               ? null // No FAB for preset 6-Jars allocations
               : FloatingActionButton(
                   heroTag: 'fab-wallet',
-                  onPressed: activeIndex == 0 ? _showAddAccountDialog : _showAddLimitDialog,
+                  onPressed: activeIndex == 0
+                      ? _showAddAccountWithSePayDialog
+                      : _showAddLimitDialog,
                   backgroundColor: BrutalColors.green,
                   shape: RoundedRectangleBorder(
                     side: BorderSide(color: BrutalColors.ink, width: 2.5),
@@ -799,6 +1065,37 @@ class _WalletScreenState extends State<WalletScreen> with SingleTickerProviderSt
     );
   }
 
+  bool _isLinkedSePayAccount(dynamic account) {
+    final connectionMode =
+        (account['connectionMode'] ?? account['ConnectionMode'] ?? '')
+            .toString();
+    final providerCode =
+        (account['providerCode'] ?? account['ProviderCode'] ?? '').toString();
+    final providerName =
+        (account['providerName'] ?? account['ProviderName'] ?? '').toString();
+    return connectionMode == 'LinkedApi' &&
+        (providerCode.toUpperCase() == 'SEPAY' ||
+            providerName.toLowerCase() == 'sepay');
+  }
+
+  String _accountSubtitle(dynamic account) {
+    if (_isLinkedSePayAccount(account)) {
+      final masked = (account['maskedAccountNumber'] ??
+              account['MaskedAccountNumber'] ??
+              account['externalAccountRef'] ??
+              account['ExternalAccountRef'] ??
+              '')
+          .toString();
+      return masked.isEmpty ? 'SePay linked account' : 'SePay • $masked';
+    }
+
+    final accountType =
+        (account['type'] ?? account['accountType'] ?? '').toString();
+    return accountType == 'saving' || accountType == 'Bank'
+        ? 'Tai khoan tiet kiem'
+        : 'Tai khoan tien mat';
+  }
+
   Widget _buildAccountsTab() {
     if (_accounts.isEmpty) {
       return _buildEmptyState('Không tìm thấy tài khoản tài chính.');
@@ -808,8 +1105,10 @@ class _WalletScreenState extends State<WalletScreen> with SingleTickerProviderSt
       padding: const EdgeInsets.all(16),
       itemBuilder: (context, index) {
         final acc = _accounts[index];
-        final balance = (acc['balance'] ?? acc['currentBalance'] ?? 0.0).toDouble();
+        final balance =
+            (acc['balance'] ?? acc['currentBalance'] ?? 0.0).toDouble();
         final isNegative = balance < 0;
+        final isLinkedSePay = _isLinkedSePayAccount(acc);
 
         return Padding(
           padding: const EdgeInsets.only(bottom: 12),
@@ -824,13 +1123,23 @@ class _WalletScreenState extends State<WalletScreen> with SingleTickerProviderSt
                     children: [
                       Text(
                         acc['name'] ?? 'Tài khoản',
-                        style: BrutalStyles.bodyStyle(size: 16, weight: FontWeight.w800),
+                        style: BrutalStyles.bodyStyle(
+                            size: 16, weight: FontWeight.w800),
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        (acc['type'] ?? acc['accountType'] ?? '') == 'saving' ? 'Tài khoản tiết kiệm' : 'Tài khoản tiền mặt',
+                        (acc['type'] ?? acc['accountType'] ?? '') == 'saving'
+                            ? 'Tài khoản tiết kiệm'
+                            : 'Tài khoản tiền mặt',
                         style: BrutalStyles.labelStyle(size: 12),
                       ),
+                      if (isLinkedSePay) ...[
+                        const SizedBox(height: 4),
+                        Text(
+                          _accountSubtitle(acc),
+                          style: BrutalStyles.labelStyle(size: 12),
+                        ),
+                      ],
                     ],
                   ),
                 ),
@@ -841,22 +1150,34 @@ class _WalletScreenState extends State<WalletScreen> with SingleTickerProviderSt
                       style: BrutalStyles.bodyStyle(
                         size: 16,
                         weight: FontWeight.w800,
-                        color: isNegative ? BrutalColors.destructive : BrutalColors.successText,
+                        color: isNegative
+                            ? BrutalColors.destructive
+                            : BrutalColors.successText,
                       ),
                     ),
                     const SizedBox(width: 8),
                     IconButton(
-                      icon: Icon(Icons.edit_outlined, color: BrutalColors.ink, size: 20),
+                      icon: Icon(
+                        Icons.edit_outlined,
+                        color: isLinkedSePay
+                            ? BrutalColors.grey
+                            : BrutalColors.ink,
+                        size: 20,
+                      ),
                       padding: EdgeInsets.zero,
                       constraints: const BoxConstraints(),
-                      onPressed: () => _showEditAccountDialog(acc),
+                      onPressed: isLinkedSePay
+                          ? null
+                          : () => _showEditAccountDialog(acc),
                     ),
                     const SizedBox(width: 8),
                     IconButton(
-                      icon: Icon(Icons.delete_outline, color: BrutalColors.destructive, size: 20),
+                      icon: Icon(Icons.delete_outline,
+                          color: BrutalColors.destructive, size: 20),
                       padding: EdgeInsets.zero,
                       constraints: const BoxConstraints(),
-                      onPressed: () => _confirmDeleteAccount(acc['id'], acc['name'] ?? 'Tài khoản'),
+                      onPressed: () => _confirmDeleteAccount(
+                          acc['id'], acc['name'] ?? 'Tài khoản'),
                     ),
                   ],
                 ),
@@ -870,12 +1191,24 @@ class _WalletScreenState extends State<WalletScreen> with SingleTickerProviderSt
 
   int _estimateJarPercentage(String name) {
     final lower = name.toLowerCase();
-    if (lower.contains('thiết yếu') || lower.contains('necessity') || lower.contains('nec')) return 55;
-    if (lower.contains('hưởng thụ') || lower.contains('play') || lower.contains('pl')) return 10;
-    if (lower.contains('giáo dục') || lower.contains('education') || lower.contains('edu')) return 10;
-    if (lower.contains('tiết kiệm') || lower.contains('saving') || lower.contains('ltss')) return 10;
-    if (lower.contains('tự do tài chính') || lower.contains('freedom') || lower.contains('ffa')) return 10;
-    if (lower.contains('từ thiện') || lower.contains('give') || lower.contains('charity')) return 5;
+    if (lower.contains('thiết yếu') ||
+        lower.contains('necessity') ||
+        lower.contains('nec')) return 55;
+    if (lower.contains('hưởng thụ') ||
+        lower.contains('play') ||
+        lower.contains('pl')) return 10;
+    if (lower.contains('giáo dục') ||
+        lower.contains('education') ||
+        lower.contains('edu')) return 10;
+    if (lower.contains('tiết kiệm') ||
+        lower.contains('saving') ||
+        lower.contains('ltss')) return 10;
+    if (lower.contains('tự do tài chính') ||
+        lower.contains('freedom') ||
+        lower.contains('ffa')) return 10;
+    if (lower.contains('từ thiện') ||
+        lower.contains('give') ||
+        lower.contains('charity')) return 5;
     return 15; // default fallback
   }
 
@@ -889,7 +1222,8 @@ class _WalletScreenState extends State<WalletScreen> with SingleTickerProviderSt
       itemBuilder: (context, index) {
         final jar = _jars[index];
         final balance = (jar['balance'] ?? 0.0).toDouble();
-        final percentage = jar['percentage'] ?? _estimateJarPercentage(jar['name'] ?? '');
+        final percentage =
+            jar['percentage'] ?? _estimateJarPercentage(jar['name'] ?? '');
 
         return Padding(
           padding: const EdgeInsets.only(bottom: 12),
@@ -904,13 +1238,15 @@ class _WalletScreenState extends State<WalletScreen> with SingleTickerProviderSt
                     Expanded(
                       child: Text(
                         jar['name'] ?? 'Hũ tài chính',
-                        style: BrutalStyles.bodyStyle(size: 15, weight: FontWeight.w800),
+                        style: BrutalStyles.bodyStyle(
+                            size: 15, weight: FontWeight.w800),
                       ),
                     ),
                     Row(
                       children: [
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 10, vertical: 4),
                           decoration: BoxDecoration(
                             color: BrutalColors.purple,
                             border: BrutalStyles.border,
@@ -918,12 +1254,14 @@ class _WalletScreenState extends State<WalletScreen> with SingleTickerProviderSt
                           ),
                           child: Text(
                             '$percentage%',
-                            style: BrutalStyles.bodyStyle(size: 12, weight: FontWeight.w800),
+                            style: BrutalStyles.bodyStyle(
+                                size: 12, weight: FontWeight.w800),
                           ),
                         ),
                         const SizedBox(width: 8),
                         IconButton(
-                          icon: Icon(Icons.edit_outlined, color: BrutalColors.ink, size: 20),
+                          icon: Icon(Icons.edit_outlined,
+                              color: BrutalColors.ink, size: 20),
                           padding: EdgeInsets.zero,
                           constraints: const BoxConstraints(),
                           onPressed: () => _showEditJarDialog(jar),
@@ -935,7 +1273,8 @@ class _WalletScreenState extends State<WalletScreen> with SingleTickerProviderSt
                 const SizedBox(height: 12),
                 Text(
                   'Số dư: ${_formatCurrency(balance)}',
-                  style: BrutalStyles.bodyStyle(size: 14, weight: FontWeight.w700),
+                  style:
+                      BrutalStyles.bodyStyle(size: 14, weight: FontWeight.w700),
                 ),
                 const SizedBox(height: 8),
                 // visual bar
@@ -974,8 +1313,13 @@ class _WalletScreenState extends State<WalletScreen> with SingleTickerProviderSt
       padding: const EdgeInsets.all(16),
       itemBuilder: (context, index) {
         final limit = _limits[index];
-        final limitAmt = (limit['limitAmount'] ?? limit['LimitAmount'] ?? 0.0).toDouble();
-        final spentAmt = (limit['currentSpent'] ?? limit['CurrentSpent'] ?? limit['spentAmount'] ?? 0.0).toDouble();
+        final limitAmt =
+            (limit['limitAmount'] ?? limit['LimitAmount'] ?? 0.0).toDouble();
+        final spentAmt = (limit['currentSpent'] ??
+                limit['CurrentSpent'] ??
+                limit['spentAmount'] ??
+                0.0)
+            .toDouble();
         final isExceeded = spentAmt > limitAmt;
         final pct = limitAmt > 0 ? (spentAmt / limitAmt).clamp(0.0, 1.0) : 0.0;
 
@@ -991,8 +1335,12 @@ class _WalletScreenState extends State<WalletScreen> with SingleTickerProviderSt
                   children: [
                     Expanded(
                       child: Text(
-                        limit['targetName'] ?? limit['TargetName'] ?? limit['category'] ?? 'Khác',
-                        style: BrutalStyles.bodyStyle(size: 15, weight: FontWeight.w800),
+                        limit['targetName'] ??
+                            limit['TargetName'] ??
+                            limit['category'] ??
+                            'Khác',
+                        style: BrutalStyles.bodyStyle(
+                            size: 15, weight: FontWeight.w800),
                       ),
                     ),
                     Row(
@@ -1002,22 +1350,31 @@ class _WalletScreenState extends State<WalletScreen> with SingleTickerProviderSt
                           style: BrutalStyles.bodyStyle(
                             size: 12,
                             weight: FontWeight.w800,
-                            color: isExceeded ? BrutalColors.destructive : BrutalColors.successText,
+                            color: isExceeded
+                                ? BrutalColors.destructive
+                                : BrutalColors.successText,
                           ),
                         ),
                         const SizedBox(width: 8),
                         IconButton(
-                          icon: Icon(Icons.edit_outlined, color: BrutalColors.ink, size: 20),
+                          icon: Icon(Icons.edit_outlined,
+                              color: BrutalColors.ink, size: 20),
                           padding: EdgeInsets.zero,
                           constraints: const BoxConstraints(),
                           onPressed: () => _showEditLimitDialog(limit),
                         ),
                         const SizedBox(width: 8),
                         IconButton(
-                          icon: Icon(Icons.delete_outline, color: BrutalColors.destructive, size: 20),
+                          icon: Icon(Icons.delete_outline,
+                              color: BrutalColors.destructive, size: 20),
                           padding: EdgeInsets.zero,
                           constraints: const BoxConstraints(),
-                          onPressed: () => _confirmDeleteLimit(limit['id'], limit['targetName'] ?? limit['TargetName'] ?? limit['category'] ?? 'Khác'),
+                          onPressed: () => _confirmDeleteLimit(
+                              limit['id'],
+                              limit['targetName'] ??
+                                  limit['TargetName'] ??
+                                  limit['category'] ??
+                                  'Khác'),
                         ),
                       ],
                     ),
@@ -1033,7 +1390,8 @@ class _WalletScreenState extends State<WalletScreen> with SingleTickerProviderSt
                     ),
                     Text(
                       'Hạn mức: ${_formatCurrency(limitAmt)}',
-                      style: BrutalStyles.bodyStyle(size: 13, color: BrutalColors.grey),
+                      style: BrutalStyles.bodyStyle(
+                          size: 13, color: BrutalColors.grey),
                     ),
                   ],
                 ),
@@ -1050,7 +1408,9 @@ class _WalletScreenState extends State<WalletScreen> with SingleTickerProviderSt
                     widthFactor: pct,
                     child: Container(
                       decoration: BoxDecoration(
-                        color: isExceeded ? BrutalColors.destructive : BrutalColors.purple,
+                        color: isExceeded
+                            ? BrutalColors.destructive
+                            : BrutalColors.purple,
                         borderRadius: BorderRadius.circular(9999),
                       ),
                     ),
@@ -1074,12 +1434,16 @@ class _WalletScreenState extends State<WalletScreen> with SingleTickerProviderSt
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const Text('📂', style: TextStyle(fontSize: 48), textAlign: TextAlign.center),
+              const Text('📂',
+                  style: TextStyle(fontSize: 48), textAlign: TextAlign.center),
               const SizedBox(height: 16),
               Text(
                 message,
                 textAlign: TextAlign.center,
-                style: BrutalStyles.bodyStyle(size: 15, color: BrutalColors.grey, weight: FontWeight.w700),
+                style: BrutalStyles.bodyStyle(
+                    size: 15,
+                    color: BrutalColors.grey,
+                    weight: FontWeight.w700),
               ),
             ],
           ),

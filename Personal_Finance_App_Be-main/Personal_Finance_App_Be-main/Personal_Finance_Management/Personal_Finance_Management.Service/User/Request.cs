@@ -9,6 +9,7 @@ public class Request
         public string? Phone { get; set; }
         public string? AvatarUrl { get; set; }
         public string? PreferredCurrency { get; set; }
+        public string? TimeZoneId { get; set; }
     }
 
     public class ChangePasswordRequest

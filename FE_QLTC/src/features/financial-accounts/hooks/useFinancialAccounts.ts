@@ -7,3 +7,10 @@ export function useFinancialAccounts() {
     queryFn: () => financialAccountService.list(),
   });
 }
+
+export function useSePayConnectionStatus() {
+  return useQuery({
+    queryKey: ["financial-accounts", "sepay", "status"],
+    queryFn: () => financialAccountService.getSePayStatus(),
+  });
+}

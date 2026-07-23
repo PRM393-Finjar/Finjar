@@ -90,6 +90,15 @@ namespace Personal_Finance_Management.Repository.Migrations
                         .HasDefaultValue("VND")
                         .HasColumnName("preferred_currency");
 
+                    b.Property<DateTimeOffset?>("QuotaTimeZoneChangeEffectiveAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("quota_time_zone_change_effective_at");
+
+                    b.Property<string>("QuotaTimeZoneId")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("quota_time_zone_id");
+
                     b.Property<Guid>("RoleId")
                         .HasColumnType("uuid")
                         .HasColumnName("role_id");
@@ -105,6 +114,11 @@ namespace Personal_Finance_Management.Repository.Migrations
                     b.Property<string>("StatusReason")
                         .HasColumnType("text")
                         .HasColumnName("status_reason");
+
+                    b.Property<string>("TimeZoneId")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("time_zone_id");
 
                     b.Property<DateTimeOffset>("UpdatedAt")
                         .ValueGeneratedOnAdd()
@@ -616,7 +630,7 @@ namespace Personal_Finance_Management.Repository.Migrations
 
                             t.HasCheckConstraint("chk_financial_accounts_connection_mode", "\"connection_mode\" IN ('Manual','LinkedApi')");
 
-                            t.HasCheckConstraint("chk_financial_accounts_sync_status", "\"sync_status\" IN ('NeverSynced','Synced','Syncing','Error','Disconnected')");
+                            t.HasCheckConstraint("chk_financial_accounts_sync_status", "\"sync_status\" IN ('NeverSynced','Synced','Syncing','Error','Disconnected','Active')");
                         });
                 });
 
@@ -1501,9 +1515,17 @@ namespace Personal_Finance_Management.Repository.Migrations
                         .HasDatabaseName("ix_transactions_account_date")
                         .HasFilter("\"is_deleted\" = FALSE");
 
+                    b.HasIndex("FinancialAccountId", "ExternalTransactionId")
+                        .IsUnique()
+                        .HasDatabaseName("ix_transactions_account_external_id")
+                        .HasFilter("\"external_transaction_id\" IS NOT NULL AND \"is_deleted\" = FALSE");
+
                     b.HasIndex("UserId", "TransactionDate")
                         .HasDatabaseName("ix_transactions_user_date")
                         .HasFilter("\"is_deleted\" = FALSE");
+
+                    b.HasIndex("UserId", "CreatedAt")
+                        .HasDatabaseName("ix_transactions_user_created_at");
 
                     b.HasIndex("UserId", "CategoryId", "TransactionDate")
                         .HasDatabaseName("ix_transactions_user_category_date")

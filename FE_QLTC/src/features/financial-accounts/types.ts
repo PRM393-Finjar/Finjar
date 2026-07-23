@@ -10,6 +10,7 @@ export interface FinancialAccountItem {
   providerName: string | null;
   maskedAccountNumber: string | null;
   syncStatus: string;
+  lastSync: string | null;
 }
 
 export interface CreateManualFinancialAccountPayload {
@@ -26,6 +27,20 @@ export interface CreateLinkApiFinancialAccountPayload {
   accountNumber: string;
   accountHolderName?: string | null;
   isDefault: boolean;
+}
+
+export interface ConnectSePayFinancialAccountPayload {
+  providerCode: "SEPAY";
+  bankCode: "VCB" | "MB" | "TCB";
+  accountNumber: string;
+  accountName: string;
+}
+
+export interface SePayConnectionStatus {
+  connected: boolean;
+  bank: string | null;
+  lastSync: string | null;
+  syncStatus: string;
 }
 
 export interface UpdateFinancialAccountPayload {

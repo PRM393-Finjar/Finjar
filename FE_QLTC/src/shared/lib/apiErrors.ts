@@ -16,8 +16,15 @@ export interface ParsedApiError {
   code?: string;
 }
 
+export const DAILY_TRANSACTION_QUOTA_EXCEEDED =
+  "DAILY_TRANSACTION_QUOTA_EXCEEDED";
+
+export const DAILY_TRANSACTION_QUOTA_TITLE = "Hết lượt tạo giao dịch";
+
 /** Mã lỗi BE → thông báo tiếng Việt cho người dùng. */
 export const API_ERROR_MESSAGES_VI: Record<string, string> = {
+  [DAILY_TRANSACTION_QUOTA_EXCEEDED]:
+    "Bạn đã sử dụng hết 10 lượt tạo giao dịch hôm nay.\nVui lòng quay lại vào ngày mai hoặc nâng cấp Premium.",
   INVALID_LOGIN_CREDENTIALS: "Email hoặc mật khẩu không đúng. Bạn kiểm tra lại nhé.",
   INVALID_TOKEN: "Link xác thực không hợp lệ hoặc đã hết hạn. Hãy gửi lại email xác thực.",
   TOKEN_EXPIRED: "Link xác thực đã hết hạn. Vui lòng gửi lại email xác thực.",
@@ -34,9 +41,29 @@ export const API_ERROR_MESSAGES_VI: Record<string, string> = {
     "Hũ này còn giao dịch hoặc mục tiêu liên quan, nên chưa xóa được.",
 };
 
+const VIETNAMESE_TEXT_PATTERN =
+  /[àáạảãâầấậẩẫăằắặẳẵèéẹẻẽêềếệểễìíịỉĩòóọỏõôồốộổỗơờớợởỡùúụủũưừứựửữỳýỵỷỹđ]/i;
+
+function isBackendUserFacingMessage(message: string): boolean {
+  return VIETNAMESE_TEXT_PATTERN.test(message);
+}
+
 function messageFromCode(code: string | undefined, fallback: string): string {
   if (!code) return fallback;
+  if (
+    code === DAILY_TRANSACTION_QUOTA_EXCEEDED &&
+    fallback &&
+    isBackendUserFacingMessage(fallback)
+  ) {
+    return fallback;
+  }
   return API_ERROR_MESSAGES_VI[code] ?? fallback;
+}
+
+export function isDailyTransactionQuotaExceeded(
+  error: Pick<ParsedApiError, "code">,
+): boolean {
+  return error.code === DAILY_TRANSACTION_QUOTA_EXCEEDED;
 }
 
 export function parseApiError(error: unknown): ParsedApiError {

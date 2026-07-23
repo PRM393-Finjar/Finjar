@@ -238,37 +238,76 @@ export function OverviewTab() {
 
       {/* Payable & owing */}
       <section className="brutal-card space-y-4 p-5 sm:p-6">
-        <h2 className="text-lg font-bold tracking-tight">{tr("payableOwing")}</h2>
-        <div className="grid gap-6 sm:grid-cols-2">
-          <div>
-            <h3 className="mb-3 text-sm font-bold">{tr("invoicesPayable")}</h3>
-            <ul className="space-y-2">
-              {payableInvoices.map((item) => (
-                <li
-                  key={item.labelKey}
-                  className="brutal-row flex items-center justify-between px-4 py-2.5 text-sm"
+        {dashboardData ? (
+          <>
+            <h2 className="text-lg font-bold tracking-tight">
+              Recent transactions
+            </h2>
+            <div className="space-y-2">
+              {dashboardData.recentTransactions.slice(0, 6).map((tx) => (
+                <div
+                  key={tx.id}
+                  className="brutal-row grid gap-2 px-4 py-3 text-sm sm:grid-cols-[1fr_auto]"
                 >
-                  <span className="font-medium">{tr(item.labelKey as TranslationKey)}</span>
-                  <span className="font-bold">{format(item.amount)}</span>
-                </li>
+                  <div className="min-w-0">
+                    <p className="truncate font-bold">{tx.note || tx.type}</p>
+                    <p className="text-xs font-semibold text-neutral-500">
+                      Source: {tx.source || "Manual"}
+                    </p>
+                  </div>
+                  <p
+                    className={cn(
+                      "font-extrabold",
+                      tx.type === "Income" ? "text-green-700" : "text-red-600",
+                    )}
+                  >
+                    {tx.type === "Income" ? "+" : "-"}
+                    {format(tx.transactionsAmount)}
+                  </p>
+                </div>
               ))}
-            </ul>
-          </div>
-          <div>
-            <h3 className="mb-3 text-sm font-bold">{tr("billsYouOwe")}</h3>
-            <ul className="space-y-2">
-              {payableBills.map((item) => (
-                <li
-                  key={item.labelKey}
-                  className="brutal-row flex items-center justify-between px-4 py-2.5 text-sm"
-                >
-                  <span className="font-medium">{tr(item.labelKey as TranslationKey)}</span>
-                  <span className="font-bold">{format(item.amount)}</span>
-                </li>
-              ))}
-            </ul>
-          </div>
-        </div>
+              {dashboardData.recentTransactions.length === 0 ? (
+                <p className="text-sm font-medium text-neutral-500">
+                  No transactions yet.
+                </p>
+              ) : null}
+            </div>
+          </>
+        ) : (
+          <>
+            <h2 className="text-lg font-bold tracking-tight">{tr("payableOwing")}</h2>
+            <div className="grid gap-6 sm:grid-cols-2">
+              <div>
+                <h3 className="mb-3 text-sm font-bold">{tr("invoicesPayable")}</h3>
+                <ul className="space-y-2">
+                  {payableInvoices.map((item) => (
+                    <li
+                      key={item.labelKey}
+                      className="brutal-row flex items-center justify-between px-4 py-2.5 text-sm"
+                    >
+                      <span className="font-medium">{tr(item.labelKey as TranslationKey)}</span>
+                      <span className="font-bold">{format(item.amount)}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+              <div>
+                <h3 className="mb-3 text-sm font-bold">{tr("billsYouOwe")}</h3>
+                <ul className="space-y-2">
+                  {payableBills.map((item) => (
+                    <li
+                      key={item.labelKey}
+                      className="brutal-row flex items-center justify-between px-4 py-2.5 text-sm"
+                    >
+                      <span className="font-medium">{tr(item.labelKey as TranslationKey)}</span>
+                      <span className="font-bold">{format(item.amount)}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+          </>
+        )}
       </section>
     </div>
   );

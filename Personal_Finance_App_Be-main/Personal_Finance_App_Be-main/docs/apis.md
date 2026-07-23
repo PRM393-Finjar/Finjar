@@ -91,7 +91,8 @@ Danh sách dưới đây là các REST APIs chính cho MVP. Chi tiết request/r
 | ------ | ----------------------------------------- | ----------------------------- |
 | GET    | `/FinancialAccount`              | Danh sách nguồn tiền |
 | POST   | `/FinancialAccount/Manual`       | Tạo nguồn tiền thủ công |
-| POST   | `/FinancialAccount/LinkApi`      | Tạo tài khoản ngân hàng liên kết Casso |
+| POST   | `/api/v1/financial-accounts/sepay/connect` | Kết nối tài khoản ngân hàng qua SePay |
+| GET    | `/api/v1/financial-accounts/sepay/status`  | Trạng thái kết nối SePay |
 | PATCH  | `/FinancialAccount/{id}`         | Sửa thông tin nguồn tiền |
 | DELETE | `/FinancialAccount/{id}`         | Xóa/ngưng theo dõi nguồn tiền |
 
@@ -120,8 +121,7 @@ Danh sách dưới đây là các REST APIs chính cho MVP. Chi tiết request/r
 | ------ | --------------------------- | ------------------- |
 | GET    | `/api/v1/transactions`      | Danh sách giao dịch |
 | POST   | `/api/v1/transactions`      | Tạo giao dịch       |
-| GET    | `/Transactions/Casso`       | Sync giao dịch từ Casso |
-| POST   | `/Transactions/Casso`       | Webhook Casso tạo giao dịch tự động |
+| POST   | `/api/v1/transactions/SePay` | Webhook SePay tạo giao dịch tự động |
 | PATCH  | `/api/v1/transactions/{id}` | Cập nhật giao dịch  |
 | DELETE | `/api/v1/transactions/{id}` | Xóa giao dịch       |
 
@@ -482,20 +482,19 @@ Response `200 OK`
 - Backend không nhận hoặc lưu các field provider/external cho manual account.
 - `accountType` hợp lệ: `Cash`, `Bank`, `EWallet`, `Other`.
 
-### `POST /FinancialAccount/LinkApi`
+### `POST /api/v1/financial-accounts/sepay/connect`
 
 - **Auth**: Bearer
-- **Mục đích**: tạo tài khoản ngân hàng liên kết Casso để backend map webhook/sync giao dịch ngân hàng.
+- **Mục đích**: kết nối tài khoản ngân hàng đã được người dùng cấu hình trong SePay để backend map webhook giao dịch ngân hàng.
 
 **Request**
 
 ```json
 {
-  "bankName": "Vietcombank",
+  "providerCode": "SEPAY",
   "bankCode": "VCB",
-  "accountNumber": "123456789",
-  "accountHolderName": "Nguyen Van A",
-  "isDefault": false
+  "accountNumber": "0123456789",
+  "accountName": "NGUYEN VAN A"
 }
 ```
 
@@ -504,26 +503,53 @@ Response `200 OK`
 ```json
 {
   "id": "guid",
-  "name": "Vietcombank",
-  "accountType": "Bank",
-  "connectionMode": "LinkedApi",
-  "providerName": "Casso",
-  "maskedAccountNumber": "*****6789",
+  "providerCode": "SEPAY",
+  "providerName": "SePay",
+  "bankCode": "VCB",
+  "bank": "Vietcombank",
+  "maskedAccountNumber": "******6789",
+  "accountName": "NGUYEN VAN A",
   "currentBalance": 0,
   "currency": "VND",
-  "syncStatus": "NeverSynced",
-  "isDefault": false,
-  "isActive": true
+  "syncStatus": "Active",
+  "lastSync": null
 }
 ```
 
 **Notes**
 
-- FE không gửi `currentBalance`, `currency`, `providerCode`, `providerName`, `externalAccountId`, `externalAccountRef`, `maskedAccountNumber`.
-- Backend tự set `accountType = Bank`, `connectionMode = LinkedApi`, `providerCode = casso`, `providerName = Casso`, `currency = VND`, `currentBalance = 0`, `syncStatus = NeverSynced`.
-- `accountNumber` được lưu vào `externalAccountId` và `externalAccountRef`; webhook/sync Casso dùng field này để map giao dịch về đúng `FinancialAccount`.
+- FE không gửi `currentBalance`, `currency`, `providerName`, `externalAccountId`, `externalAccountRef`, `maskedAccountNumber`.
+- Backend tự set `accountType = Bank`, `connectionMode = LinkedApi`, `providerCode = SEPAY`, `providerName = SePay`, `currency = VND`, `currentBalance = 0`, `syncStatus = Active`.
+- `accountNumber` được lưu vào `externalAccountId` và `externalAccountRef`; webhook SePay dùng field này để map giao dịch về đúng `FinancialAccount`.
 - `maskedAccountNumber` được backend tự tạo từ `accountNumber`.
-- Đây là flow MVP để FE dễ thao tác. Flow tương lai có thể dùng Casso OAuth/accounts API để backend tự lấy account list từ provider response.
+- Đây là flow MVP đơn giản: người dùng thao tác chính với SePay, Finjar không triển khai direct bank API, Open Banking hoặc OAuth.
+
+### `GET /api/v1/financial-accounts/sepay/status`
+
+- **Auth**: Bearer
+- **Mục đích**: trả trạng thái kết nối SePay hiện tại của user.
+
+**Response `200 OK`**
+
+```json
+{
+  "connected": true,
+  "bank": "Vietcombank",
+  "lastSync": "2026-07-22T10:00:00+07:00",
+  "syncStatus": "Active"
+}
+```
+
+Nếu user chưa có tài khoản SePay active:
+
+```json
+{
+  "connected": false,
+  "bank": "",
+  "lastSync": null,
+  "syncStatus": "Disconnected"
+}
+```
 
 ### `PATCH /FinancialAccount/{id}`
 
@@ -554,7 +580,7 @@ Response `200 OK`
 
 - Chỉ cho user cập nhật nguồn tiền thuộc sở hữu của chính họ.
 - Với `connectionMode = LinkedApi`, không cho sửa `currentBalance` thủ công.
-- Balance của `LinkedApi` chỉ được cập nhật qua Casso webhook/sync.
+- Balance của `LinkedApi` chỉ được cập nhật qua SePay webhook trong MVP.
 - Endpoint `POST /FinancialAccount` cũ đã bị gỡ khỏi code để tránh FE gửi request dài và sai domain.
 - Endpoint balance riêng hiện không dùng trong code hiện tại.
 
@@ -969,66 +995,37 @@ Response `200 OK`
 }
 ```
 
-### `GET /Transactions/Casso`
+### `POST /api/v1/transactions/SePay`
 
-- **Auth**: Bearer
-- **Mục đích**: user/app chủ động sync giao dịch từ Casso về một tài khoản `LinkedApi`.
-
-Query Params
-
-- `financialAccountId=guid` required
-- `fromDate=2026-05-01` optional
-- `toDate=2026-05-08` optional
-- `page=1` optional, default `1`
-- `pageSize=20` optional, default `20`
-- `sort=ASC|DESC` optional, default `ASC`
-
-Response `200 OK`
-
-```json
-{
-  "receivedCount": 20,
-  "createdCount": 12,
-  "skippedCount": 8,
-  "message": "Casso transactions synced."
-}
-```
-
-**Notes**
-
-- `financialAccountId` phải thuộc user hiện tại, `isActive = true`, `connectionMode = LinkedApi`.
-- Backend gọi Casso transactions API bằng config `CasooOptions:ApiKey`.
-- Giao dịch trùng `externalTransactionId` sẽ được skip.
-- Khi sync thành công, backend cập nhật `syncStatus`, `lastSyncedAt`, `lastSyncError` của financial account.
-
-### `POST /Transactions/Casso`
-
-- **Auth**: None từ phía Casso webhook. Endpoint dùng `AllowAnonymous` vì request không có JWT user.
-- **Mục đích**: Casso gọi webhook vào backend khi có giao dịch ngân hàng mới.
+- **Auth**: Anonymous endpoint, verified by API key header.
+- **Mục đích**: SePay gọi webhook vào backend khi tài khoản ngân hàng có giao dịch mới.
 
 Headers
 
-- `secure-token`: token webhook Casso, so với config `CasooOptions:SecureToken`
-- `X-Casso-Signature`: signature Casso nếu provider gửi
+- `Authorization: Apikey <SePay__WebhookApiKey>`
+
+Environment
+
+```text
+SePay__WebhookApiKey=replace-with-the-api-key-configured-in-sepay
+```
 
 Request mẫu
 
 ```json
 {
-  "error": 0,
-  "data": [
-    {
-      "id": "casso-tx-001",
-      "reference": "casso-tx-001",
-      "description": "Thanh toan an uong",
-      "amount": -50000,
-      "runningBalance": 950000,
-      "transactionDateTime": "2026-05-08T10:00:00+07:00",
-      "accountNumber": "123456789",
-      "bankName": "Vietcombank",
-      "bankAbbreviation": "VCB"
-    }
-  ]
+  "id": 1001,
+  "gateway": "Vietcombank",
+  "transactionDate": "2026-07-22 10:00:00",
+  "accountNumber": "0123456789",
+  "subAccount": null,
+  "code": "FT25204",
+  "content": "Thanh toan",
+  "transferType": "in",
+  "description": "Thanh toan",
+  "transferAmount": 500000,
+  "accumulated": 10500000,
+  "referenceCode": "VCB-1001"
 }
 ```
 
@@ -1036,24 +1033,26 @@ Response `200 OK`
 
 ```json
 {
+  "success": true,
   "receivedCount": 1,
   "createdCount": 1,
   "skippedCount": 0,
-  "message": "Casso webhook processed."
+  "message": "SePay webhook processed."
 }
 ```
 
 **Mapping rules**
 
-- `amount > 0` -> `type = Income`.
-- `amount < 0` -> `type = Expense`.
-- `transactionsAmount` lưu số dương.
+- `transferType = in` -> `type = Income`.
+- `transferType = out` -> `type = Expense`.
+- `transactionsAmount` lưu số dương từ `transferAmount`.
 - `sourceType = Imported`.
-- `externalTransactionId` lấy từ `reference`, `tid` hoặc `id`.
-- `rawPayloadJson` lưu payload gốc từ Casso để debug.
-- Backend map `accountNumber/subAccId/bankSubAccId` với `FinancialAccount.externalAccountRef`, `maskedAccountNumber` hoặc `externalAccountId`.
-- Nếu Casso gửi `runningBalance`, backend dùng nó để cập nhật `FinancialAccount.currentBalance`; nếu không có thì cộng/trừ theo amount.
-- FE không gọi endpoint này trong flow bình thường; FE chỉ xem kết quả qua `GET /Transactions`.
+- `externalTransactionId = sepay:{id}`.
+- `rawPayloadJson` lưu payload gốc từ SePay để debug.
+- Backend chỉ nhận account đã link `providerCode = SEPAY`; account không tồn tại trả `404`.
+- Nếu SePay gửi `accumulated`, backend dùng giá trị này để cập nhật `FinancialAccount.currentBalance`; nếu không có thì cộng/trừ theo `transferAmount`.
+- Mỗi `(financialAccountId, externalTransactionId)` chỉ được import một lần.
+- FE không gọi endpoint này trong flow bình thường; FE chỉ xem kết quả qua `GET /api/v1/transactions` và dashboard.
 
 ### `POST /api/v1/imports`
 

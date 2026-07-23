@@ -127,6 +127,8 @@ public class Service : IService
                 x.Type,
                 x.TransactionsAmount,
                 x.Note,
+                x.SourceType,
+                ProviderName = x.FinancialAccount == null ? null : x.FinancialAccount.ProviderName,
                 x.TransactionDate
             })
             .ToList()
@@ -137,6 +139,9 @@ public class Service : IService
                 type = x.Type,
                 transactionsAmount = Math.Round(x.TransactionsAmount, 2),
                 note = x.Note,
+                source = x.SourceType == "Imported" && !string.IsNullOrWhiteSpace(x.ProviderName)
+                    ? x.ProviderName
+                    : x.SourceType,
                 date = x.TransactionDate,
             })
             .ToList();

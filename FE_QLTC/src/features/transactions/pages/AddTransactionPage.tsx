@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { BrutalPageHeader } from "@/shared/components/layout/BrutalPageHeader";
 import {
@@ -12,7 +13,11 @@ import {
 import { Input } from "@/shared/components/ui/input";
 import { Label } from "@/shared/components/ui/label";
 import { ScheduleDateTimePicker } from "@/shared/components/ScheduleDateTimePicker";
-import { parseApiError } from "@/shared/lib/apiErrors";
+import {
+  DAILY_TRANSACTION_QUOTA_TITLE,
+  isDailyTransactionQuotaExceeded,
+  parseApiError,
+} from "@/shared/lib/apiErrors";
 import { ROUTES } from "@/shared/constants";
 import {
   getCategoryDisplayName,
@@ -227,6 +232,11 @@ export function AddTransactionPage() {
     } catch (e) {
       const parsed = parseApiError(e);
       setFormError(parsed.message);
+      if (isDailyTransactionQuotaExceeded(parsed)) {
+        toast.error(DAILY_TRANSACTION_QUOTA_TITLE, {
+          description: parsed.message,
+        });
+      }
       if (parsed.field) {
         setFieldErrors({ [parsed.field]: parsed.message });
       }

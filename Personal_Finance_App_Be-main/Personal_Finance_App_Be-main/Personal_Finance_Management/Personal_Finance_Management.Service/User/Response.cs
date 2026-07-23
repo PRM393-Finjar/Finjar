@@ -14,6 +14,7 @@ public class Response
         public string? Phone { get; set; }
         public string? AvatarUrl { get; set; }
         public string PreferredCurrency { get; set; } = "VND";
+        public string TimeZoneId { get; set; } = "Asia/Ho_Chi_Minh";
         public bool IsOnboardingCompleted { get; set; }
         public bool IsPremium { get; set; }
         public DateTimeOffset? PremiumExpiresAt { get; set; }
@@ -25,6 +26,7 @@ public class Response
         public string fullName { get; set; }
         public string phone { get; set; }
         public string avatarUrl { get; set; }
+        public string timeZoneId { get; set; } = "Asia/Ho_Chi_Minh";
     }
 
     public class ViewSetupResponse
@@ -49,6 +51,7 @@ public class Response
         public string? Phone { get; set; }
         public string? AvatarUrl { get; set; }
         public string PreferredCurrency { get; set; } = "VND";
+        public string TimeZoneId { get; set; } = "Asia/Ho_Chi_Minh";
         public bool IsOnboardingCompleted { get; set; }
         public string Status { get; set; } = string.Empty;
         public string? StatusReason { get; set; }

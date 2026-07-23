@@ -5,6 +5,8 @@ public interface IService
     public Task<Response.GetFinancialAccountResult> GetUserFinancialAccount();
     public Task<Response.CreateManualFinancialAccountResponse> CreateManualFinancialAccount(Request.CreateManualFinancialAccountRequest request);
     public Task<Response.CreateLinkApiFinancialAccountResponse> CreateLinkApiFinancialAccount(Request.CreateLinkApiFinancialAccountRequest request);
+    public Task<Response.ConnectSePayFinancialAccountResponse> ConnectSePayFinancialAccount(Request.ConnectSePayFinancialAccountRequest request);
+    public Task<Response.SePayConnectionStatusResponse> GetSePayConnectionStatus();
     public Task<Response.UpdateFinancialAccountResponse> UpdateFinancialAccount(Guid id, Request.UpdateFinancialAccountRequest request);
     public Task<Response.DeleteFinancialAccountResponse> DeleteFinancialAccount(Guid id);
 }

@@ -88,6 +88,7 @@ export function buildMockUserDashboard(): UserDashboardData {
         type: t.type,
         transactionsAmount: t.amount,
         note: t.note,
+        source: "Manual",
         date: t.transaction_date,
       })),
     goalProgress: goals.map((g) => {

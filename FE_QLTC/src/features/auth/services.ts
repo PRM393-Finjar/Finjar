@@ -2,8 +2,7 @@ import type { AuthResponse, LoginRequest, RegisterRequest, RegisterResponse } fr
 import { mapAxiosAuthError } from "./backendAuth";
 import { apiClient } from "@/lib/axios";
 import { mockData } from "@/lib/mockData";
-import { env } from "@/lib/env";
-import { requestWithStrategy, wait } from "@/lib/requestStrategy";
+import { requestWithStrategy, type RequestMode, wait } from "@/lib/requestStrategy";
 import { API_ENDPOINT } from "@/shared/constants";
 
 /**

@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:dio/dio.dart';
 import '../../../core/network/api_client.dart';
 import '../../../core/network/api_endpoints.dart';
+import '../../../core/network/api_error_mapper.dart';
 import '../../../core/storage/secure_storage.dart';
 import '../models/auth_state.dart';
 
@@ -81,7 +82,10 @@ class AuthNotifier extends StateNotifier<AuthState> {
       );
       return true;
     } on DioException catch (e) {
-      final message = e.response?.data?['message'] ?? e.response?.data?['error'] ?? 'Đăng nhập thất bại. Vui lòng kiểm tra lại.';
+      final message = ApiErrorMapper.messageFromDioException(
+        e,
+        fallback: 'Đăng nhập thất bại. Vui lòng kiểm tra lại.',
+      );
       state = state.copyWith(isLoading: false, error: message.toString());
       return false;
     } catch (e) {
@@ -128,7 +132,10 @@ class AuthNotifier extends StateNotifier<AuthState> {
       );
       return true;
     } on DioException catch (e) {
-      final message = e.response?.data?['message'] ?? e.response?.data?['error'] ?? 'Đăng ký thất bại. Vui lòng kiểm tra lại.';
+      final message = ApiErrorMapper.messageFromDioException(
+        e,
+        fallback: 'Đăng ký thất bại. Vui lòng kiểm tra lại.',
+      );
       state = state.copyWith(isLoading: false, error: message.toString());
       return false;
     } catch (e) {

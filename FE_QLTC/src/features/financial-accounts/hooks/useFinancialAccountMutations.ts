@@ -3,6 +3,7 @@ import { financialAccountService } from "../services";
 import type {
   CreateLinkApiFinancialAccountPayload,
   CreateManualFinancialAccountPayload,
+  ConnectSePayFinancialAccountPayload,
   UpdateFinancialAccountPayload,
 } from "../types";
 
@@ -27,6 +28,21 @@ export function useCreateLinkApiFinancialAccount() {
       financialAccountService.createLinkApi(payload),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: QK });
+      void queryClient.invalidateQueries({ queryKey: ["dashboard", "user"] });
+    },
+  });
+}
+
+export function useConnectSePayFinancialAccount() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: ConnectSePayFinancialAccountPayload) =>
+      financialAccountService.connectSePay(payload),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: QK });
+      void queryClient.invalidateQueries({
+        queryKey: ["financial-accounts", "sepay"],
+      });
       void queryClient.invalidateQueries({ queryKey: ["dashboard", "user"] });
     },
   });

@@ -22,6 +22,7 @@ export interface AuthUser {
   role: string;
   avatarUrl?: string | null;
   isOnboardingCompleted?: boolean;
+  isEmailVerified?: boolean;
 }
 
 export interface AuthResponse extends AuthUser {

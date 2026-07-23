@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:dio/dio.dart';
 import '../../../core/network/api_client.dart';
 import '../../../core/network/api_endpoints.dart';
+import '../../../core/network/api_error_mapper.dart';
 import '../../auth/providers/auth_provider.dart';
 import '../models/onboarding_state.dart';
 
@@ -58,7 +59,10 @@ class OnboardingNotifier extends StateNotifier<OnboardingState> {
       state = state.copyWith(isLoading: false);
       return true;
     } on DioException catch (e) {
-      final message = e.response?.data?['message'] ?? e.response?.data?['error'] ?? 'Không thể gửi dữ liệu khảo sát. Vui lòng thử lại.';
+      final message = ApiErrorMapper.messageFromDioException(
+        e,
+        fallback: 'Không thể gửi dữ liệu khảo sát. Vui lòng thử lại.',
+      );
       state = state.copyWith(isLoading: false, error: message.toString());
       return false;
     } catch (e) {

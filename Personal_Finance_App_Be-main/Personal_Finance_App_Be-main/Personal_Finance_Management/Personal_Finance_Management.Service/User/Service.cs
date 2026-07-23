@@ -12,6 +12,9 @@ namespace Personal_Finance_Management.Service.User;
 
 public class Service : IService
 {
+    private const string DefaultTimeZoneId = "Asia/Ho_Chi_Minh";
+    private const string WindowsDefaultTimeZoneId = "SE Asia Standard Time";
+
     private readonly AppDbContext _dbContext;
     private readonly IHttpContextAccessor _httpContext;
     private readonly IServices _validationServices;
@@ -40,6 +43,7 @@ public class Service : IService
             Phone = x.Phone,
             AvatarUrl = x.AvatarUrl,
             PreferredCurrency = x.PreferredCurrency,
+            TimeZoneId = string.IsNullOrWhiteSpace(x.TimeZoneId) ? DefaultTimeZoneId : x.TimeZoneId,
             IsOnboardingCompleted = x.IsOnboardingCompleted,
             IsPremium = x.PremiumExpiresAt != null && x.PremiumExpiresAt > DateTimeOffset.UtcNow,
             PremiumExpiresAt = x.PremiumExpiresAt
@@ -87,6 +91,7 @@ public class Service : IService
                 Phone = x.Phone,
                 AvatarUrl = x.AvatarUrl,
                 PreferredCurrency = x.PreferredCurrency,
+                TimeZoneId = string.IsNullOrWhiteSpace(x.TimeZoneId) ? DefaultTimeZoneId : x.TimeZoneId,
                 IsOnboardingCompleted = x.IsOnboardingCompleted,
                 Status = x.Status,
                 StatusReason = x.StatusReason,
@@ -125,28 +130,37 @@ public class Service : IService
     {
         var userIdGuid = GetCurrentUserId();
 
+        if (request.TimeZoneId != null)
+        {
+            await using var timezoneTransaction = await _dbContext.Database.BeginTransactionAsync();
+            await LockDailyTransactionQuotaAsync(userIdGuid);
+
+            var userWithTimeZone = await _dbContext.Accounts
+                .FirstOrDefaultAsync(x => x.Id == userIdGuid);
+
+            if (userWithTimeZone == null)
+                throw new Exception("User not found");
+
+            ApplyPendingQuotaTimeZoneIfDue(userWithTimeZone, DateTimeOffset.UtcNow);
+            ApplyProfileFields(userWithTimeZone, request);
+            ApplyRequestedTimeZone(userWithTimeZone, request.TimeZoneId, DateTimeOffset.UtcNow);
+
+            await _dbContext.SaveChangesAsync();
+            await timezoneTransaction.CommitAsync();
+
+            return ToUpdateUserResponse(userWithTimeZone);
+        }
+
         var user = await _dbContext.Accounts
             .FirstOrDefaultAsync(x => x.Id == userIdGuid);
 
         if (user == null)
             throw new Exception("User not found");
 
-        user.FirstName = request.FirstName ?? user.FirstName;
-        user.LastName = request.LastName ?? user.LastName;
-        user.Phone = request.Phone ?? user.Phone;
-        user.AvatarUrl = request.AvatarUrl ?? user.AvatarUrl;
-        if (!string.IsNullOrWhiteSpace(request.PreferredCurrency))
-            user.PreferredCurrency = request.PreferredCurrency.Trim().ToUpperInvariant();
-
+        ApplyProfileFields(user, request);
         await _dbContext.SaveChangesAsync();
-        var result = new Response.UpdateUserResponse()
-        {
-            Id = user.Id,
-            fullName = user.FirstName + " " + user.LastName,
-            phone = user.Phone,
-            avatarUrl = user.AvatarUrl,
-        };
-        return result;
+
+        return ToUpdateUserResponse(user);
     }
 
     public async Task ChangePassword(Request.ChangePasswordRequest request)
@@ -226,6 +240,7 @@ public class Service : IService
             Phone = user.Phone,
             AvatarUrl = user.AvatarUrl,
             PreferredCurrency = user.PreferredCurrency,
+            TimeZoneId = string.IsNullOrWhiteSpace(user.TimeZoneId) ? DefaultTimeZoneId : user.TimeZoneId,
             IsOnboardingCompleted = user.IsOnboardingCompleted,
             Status = user.Status,
             StatusReason = user.StatusReason,
@@ -238,4 +253,147 @@ public class Service : IService
     {
         return ServiceClaimHelper.GetRequiredUserId(_httpContext);
     }
+
+    private static void ApplyProfileFields(Account user, Request.UpdateUserRequest request)
+    {
+        user.FirstName = request.FirstName ?? user.FirstName;
+        user.LastName = request.LastName ?? user.LastName;
+        user.Phone = request.Phone ?? user.Phone;
+        user.AvatarUrl = request.AvatarUrl ?? user.AvatarUrl;
+        if (!string.IsNullOrWhiteSpace(request.PreferredCurrency))
+            user.PreferredCurrency = request.PreferredCurrency.Trim().ToUpperInvariant();
+    }
+
+    private static Response.UpdateUserResponse ToUpdateUserResponse(Account user)
+    {
+        return new Response.UpdateUserResponse
+        {
+            Id = user.Id,
+            fullName = user.FirstName + " " + user.LastName,
+            phone = user.Phone,
+            avatarUrl = user.AvatarUrl,
+            timeZoneId = string.IsNullOrWhiteSpace(user.TimeZoneId) ? DefaultTimeZoneId : user.TimeZoneId,
+        };
+    }
+
+    private async Task LockDailyTransactionQuotaAsync(Guid userId)
+    {
+        var lockKey = $"daily-transaction-quota:{userId:N}";
+        await _dbContext.Database.ExecuteSqlInterpolatedAsync(
+            $"SELECT pg_advisory_xact_lock(hashtext({lockKey}))");
+    }
+
+    private static void ApplyRequestedTimeZone(Account user, string requestedTimeZoneId, DateTimeOffset now)
+    {
+        var activeQuotaTimeZoneId = GetActiveQuotaTimeZoneId(user);
+        user.QuotaTimeZoneId = activeQuotaTimeZoneId;
+
+        var timeZoneId = requestedTimeZoneId.Trim();
+        if (timeZoneId.Length == 0)
+        {
+            user.TimeZoneId = null;
+        }
+        else
+        {
+            EnsureSupportedTimeZone(timeZoneId);
+            user.TimeZoneId = timeZoneId;
+        }
+
+        var desiredTimeZoneId = GetDesiredTimeZoneId(user);
+        if (string.Equals(activeQuotaTimeZoneId, desiredTimeZoneId, StringComparison.OrdinalIgnoreCase))
+        {
+            user.QuotaTimeZoneChangeEffectiveAt = null;
+            return;
+        }
+
+        var currentQuotaWindow = GetDailyQuotaWindow(activeQuotaTimeZoneId, now);
+        user.QuotaTimeZoneChangeEffectiveAt = currentQuotaWindow.EndUtc;
+    }
+
+    private static void ApplyPendingQuotaTimeZoneIfDue(Account user, DateTimeOffset now)
+    {
+        user.QuotaTimeZoneId = GetActiveQuotaTimeZoneId(user);
+
+        if (user.QuotaTimeZoneChangeEffectiveAt.HasValue
+            && now >= user.QuotaTimeZoneChangeEffectiveAt.Value)
+        {
+            user.QuotaTimeZoneId = GetDesiredTimeZoneId(user);
+            user.QuotaTimeZoneChangeEffectiveAt = null;
+        }
+    }
+
+    private static DailyQuotaWindow GetDailyQuotaWindow(string timeZoneId, DateTimeOffset now)
+    {
+        var timeZone = ResolveTimeZone(timeZoneId);
+        var userNow = TimeZoneInfo.ConvertTime(now, timeZone);
+        var todayStartLocal = DateTime.SpecifyKind(userNow.Date, DateTimeKind.Unspecified);
+        var tomorrowStartLocal = todayStartLocal.AddDays(1);
+
+        return new DailyQuotaWindow(
+            new DateTimeOffset(TimeZoneInfo.ConvertTimeToUtc(todayStartLocal, timeZone), TimeSpan.Zero),
+            new DateTimeOffset(TimeZoneInfo.ConvertTimeToUtc(tomorrowStartLocal, timeZone), TimeSpan.Zero));
+    }
+
+    private static string GetActiveQuotaTimeZoneId(Account user)
+    {
+        return string.IsNullOrWhiteSpace(user.QuotaTimeZoneId)
+            ? GetDesiredTimeZoneId(user)
+            : user.QuotaTimeZoneId.Trim();
+    }
+
+    private static string GetDesiredTimeZoneId(Account user)
+    {
+        return string.IsNullOrWhiteSpace(user.TimeZoneId) ? DefaultTimeZoneId : user.TimeZoneId.Trim();
+    }
+
+    private static void EnsureSupportedTimeZone(string timeZoneId)
+    {
+        if (FindTimeZone(timeZoneId) == null)
+        {
+            throw AppValidationException.BadRequest("Timezone is invalid.", "timeZoneId", "INVALID_TIMEZONE");
+        }
+    }
+
+    private static TimeZoneInfo ResolveTimeZone(string timeZoneId)
+    {
+        return FindTimeZone(timeZoneId)
+               ?? FindTimeZone(DefaultTimeZoneId)
+               ?? FindTimeZone(WindowsDefaultTimeZoneId)
+               ?? throw new InvalidOperationException($"Default timezone '{DefaultTimeZoneId}' is not available.");
+    }
+
+    private static TimeZoneInfo? FindTimeZone(string? timeZoneId)
+    {
+        if (string.IsNullOrWhiteSpace(timeZoneId))
+        {
+            return null;
+        }
+
+        var normalizedTimeZoneId = timeZoneId.Trim();
+        if (string.Equals(normalizedTimeZoneId, DefaultTimeZoneId, StringComparison.OrdinalIgnoreCase))
+        {
+            return TryFindSystemTimeZone(DefaultTimeZoneId)
+                   ?? TryFindSystemTimeZone(WindowsDefaultTimeZoneId);
+        }
+
+        return TryFindSystemTimeZone(normalizedTimeZoneId);
+    }
+
+    private static TimeZoneInfo? TryFindSystemTimeZone(string timeZoneId)
+    {
+        try
+        {
+            return TimeZoneInfo.FindSystemTimeZoneById(timeZoneId);
+        }
+        catch (TimeZoneNotFoundException)
+        {
+            return null;
+        }
+        catch (InvalidTimeZoneException)
+        {
+            return null;
+        }
+    }
+
+    private sealed record DailyQuotaWindow(DateTimeOffset StartUtc, DateTimeOffset EndUtc);
 }

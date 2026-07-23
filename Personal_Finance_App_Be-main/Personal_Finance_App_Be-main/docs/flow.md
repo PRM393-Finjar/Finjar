@@ -381,10 +381,10 @@ Render mỗi item:
 CTA:
 
 - `Thêm nguồn tiền thủ công`.
-- `Liên kết ngân hàng qua Casso`.
+- `Liên kết ngân hàng qua SePay`.
 - `Sửa`.
 - `Xóa/Ngừng theo dõi`.
-- `Sync Casso` nếu account là `LinkedApi`.
+- Không cần nút sync thủ công; SePay webhook tự cập nhật khi có biến động.
 
 ### 7.2 Tạo nguồn tiền thủ công
 
@@ -411,22 +411,21 @@ Sau response:
 - refresh `GET /FinancialAccount`;
 - nếu đang ở dashboard thì refresh dashboard.
 
-### 7.3 Liên kết ngân hàng/Casso
+### 7.3 Liên kết ngân hàng/SePay
 
 Modal/form:
 
 | Field | UI |
 | --- | --- |
-| `bankName` | text |
-| `bankCode` | optional text |
+| `providerCode` | hidden/default `SEPAY` |
+| `bankCode` | select `VCB`, `MB`, `TCB` |
 | `accountNumber` | text |
-| `accountHolderName` | optional text |
-| `isDefault` | checkbox |
+| `accountName` | text |
 
 Submit:
 
 ```http
-POST /FinancialAccount/LinkApi
+POST /api/v1/financial-accounts/sepay/connect
 Authorization: Bearer <token>
 ```
 
@@ -438,7 +437,7 @@ Sau response:
 UX:
 
 - Không cho nhập/sửa balance thủ công đối với linked account.
-- Gắn nút `Sync Casso` để kéo giao dịch.
+- Không có OAuth/direct bank API/Open Banking trong MVP; user cấu hình tài khoản ở SePay, Finjar chỉ nhận webhook.
 
 ### 7.4 Sửa nguồn tiền
 
@@ -807,45 +806,25 @@ Ghi chú:
 
 ---
 
-## 11. Casso sync flow
-
-### 11.1 User bấm sync linked account
-
-Màn dùng: `/accounts` hoặc account detail.
-
-Điều kiện hiển thị nút:
-
-- account `connectionMode = LinkedApi`;
-- account active.
-
-API:
-
-```http
-GET /Transactions/Casso?financialAccountId={id}&page=1&pageSize=50&sort=ASC
-Authorization: Bearer <token>
-```
-
-Optional query:
-
-- `fromDate`;
-- `toDate`.
-
-Sau response:
-
-- show toast: `Đã nhận X, tạo Y, bỏ qua Z`.
-- refresh transactions;
-- refresh account balance;
-- refresh dashboard.
-
-### 11.2 Webhook Casso
+## 11. SePay webhook flow
 
 Endpoint:
 
 ```http
-POST /Transactions/Casso
+POST /api/v1/transactions/SePay
+Authorization: Apikey <SePay__WebhookApiKey>
 ```
 
-FE không gọi API này. Đây là endpoint để Casso/server ngoài gọi vào backend.
+FE không gọi API này. Đây là endpoint để SePay gọi vào backend khi có giao dịch ngân hàng mới.
+
+Xử lý:
+
+- map `accountNumber` với tài khoản `providerCode = SEPAY`;
+- `transferType = in` tạo `Income`, `transferType = out` tạo `Expense`;
+- `externalTransactionId = sepay:{id}` để chống trùng;
+- nếu có `accumulated` thì dùng làm `FinancialAccount.CurrentBalance`, nếu không có thì cộng/trừ theo `transferAmount`;
+- cập nhật `LastSyncedAt`, `SyncStatus = Active`;
+- dashboard đọc lại `FinancialAccount.CurrentBalance` và `Transaction`.
 
 ---
 
