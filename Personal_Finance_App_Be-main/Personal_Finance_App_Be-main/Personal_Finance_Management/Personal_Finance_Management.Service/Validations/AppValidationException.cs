@@ -35,4 +35,9 @@ public class AppValidationException : Exception
     {
         return new AppValidationException(message, 403, new { code });
     }
+
+    public static AppValidationException Unauthorized(string message, string field = "auth", string code = "UNAUTHORIZED")
+    {
+        return new AppValidationException(message, 401, new { field, code });
+    }
 }
