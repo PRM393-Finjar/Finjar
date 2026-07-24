@@ -13,7 +13,7 @@ Existing local PostgreSQL databases may still have the old
 root before testing SePay connect/webhooks:
 
 ```powershell
-Get-Content .\database\fix_sepay_constraint.sql | docker exec -i finjar-postgres psql -U postgres -d PersonalFinanceManagementDb
+Get-Content .\database\fix_sepay_constraint.sql | docker exec -i personal-finance-postgres psql -U postgres -d PersonalFinanceManagementDb
 ```
 
 New databases that apply EF migration

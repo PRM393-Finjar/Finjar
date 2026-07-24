@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:finjar_mobile/core/network/api_client.dart';
 import 'package:finjar_mobile/core/storage/secure_storage.dart';
 import 'package:finjar_mobile/core/theme/brutal_theme.dart';
 import 'package:finjar_mobile/core/theme/app_settings.dart';
 import 'package:finjar_mobile/features/auth/auth_screen.dart';
 import 'package:finjar_mobile/features/auth/verify_email_pending_screen.dart';
+import 'package:finjar_mobile/features/splash/splash_screen.dart';
 import 'package:finjar_mobile/features/onboarding/screens/onboarding_screen.dart';
 import 'package:finjar_mobile/features/dashboard/dashboard_screen.dart';
 import 'package:finjar_mobile/features/transactions/transactions_screen.dart';
@@ -30,42 +30,39 @@ final GlobalKey<DashboardScreenState> dashboardKey =
 
 final GoRouter appRouter = GoRouter(
   navigatorKey: _rootNavigatorKey,
-  initialLocation: '/dashboard',
+  // Splash vẽ ngay — tránh màn đen khi redirect async chưa xong.
+  initialLocation: '/splash',
   redirect: (BuildContext context, GoRouterState state) async {
-    final token = await SecureStorage.getToken();
-    var onboardingCompleted = await SecureStorage.isOnboardingCompleted();
     final location = state.matchedLocation;
+    final isSplash = location == '/splash';
     final isAuth = location == '/auth';
     final isOnboarding = location == '/onboarding';
     final isVerifyEmail = location.startsWith('/verify-email');
 
-    if (token != null &&
-        token.isNotEmpty &&
-        await SecureStorage.isSessionExpired()) {
+    // Splash tự quyết định route; không chặn bằng redirect.
+    if (isSplash) return null;
+
+    String? token;
+    var onboardingCompleted = false;
+    var expired = false;
+    try {
+      token = await SecureStorage.getToken()
+          .timeout(const Duration(seconds: 2), onTimeout: () => null);
+      onboardingCompleted = await SecureStorage.isOnboardingCompleted()
+          .timeout(const Duration(seconds: 2), onTimeout: () => false);
+      expired = await SecureStorage.isSessionExpired()
+          .timeout(const Duration(seconds: 2), onTimeout: () => false);
+    } catch (_) {
+      return isAuth || isVerifyEmail ? null : '/auth';
+    }
+
+    if (token != null && token.isNotEmpty && expired) {
       await SecureStorage.clearSession();
       return isAuth || isVerifyEmail ? null : '/auth';
     }
 
     if (token == null || token.isEmpty) {
       return isAuth || isVerifyEmail ? null : '/auth';
-    }
-
-    // Đồng bộ cờ local với BE nếu lệch (ví dụ cài lại app / clear data).
-    if (!onboardingCompleted && !isOnboarding) {
-      try {
-        final api = ApiClient();
-        final me = await api.get('user/me');
-        final data = me.data;
-        final done = data is Map &&
-            (data['isOnboardingCompleted'] == true ||
-                data['IsOnboardingCompleted'] == true);
-        if (done) {
-          await SecureStorage.saveOnboardingCompleted(true);
-          onboardingCompleted = true;
-        }
-      } catch (_) {
-        // Giữ flag local nếu không gọi được API.
-      }
     }
 
     if (!onboardingCompleted) {
@@ -78,7 +75,21 @@ final GoRouter appRouter = GoRouter(
 
     return null;
   },
+  errorBuilder: (context, state) => Scaffold(
+    backgroundColor: const Color(0xFFF4F4F5),
+    body: Center(
+      child: Text(
+        'Không tải được màn hình.\n${state.error}',
+        textAlign: TextAlign.center,
+        style: BrutalStyles.bodyStyle(),
+      ),
+    ),
+  ),
   routes: [
+    GoRoute(
+      path: '/splash',
+      builder: (context, state) => const SplashScreen(),
+    ),
     GoRoute(
       path: '/auth',
       builder: (context, state) => const AuthScreen(),

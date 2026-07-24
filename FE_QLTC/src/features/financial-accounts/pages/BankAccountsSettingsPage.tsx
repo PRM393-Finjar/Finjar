@@ -55,6 +55,7 @@ export function BankAccountsSettingsPage() {
     useState<ConnectSePayFinancialAccountPayload["bankCode"]>("VCB");
   const [accountNumber, setAccountNumber] = useState("");
   const [accountName, setAccountName] = useState("");
+  const [sepayApiKey, setSepayApiKey] = useState("");
 
   const sePayAccounts = useMemo(
     () =>
@@ -73,9 +74,11 @@ export function BankAccountsSettingsPage() {
         bankCode,
         accountNumber,
         accountName,
+        sepayApiKey,
       });
       setAccountNumber("");
       setAccountName("");
+      setSepayApiKey("");
       toast.success("SePay account connected");
     } catch (error) {
       toast.error(
@@ -219,11 +222,23 @@ export function BankAccountsSettingsPage() {
                 onChange={(event) => setAccountName(event.target.value)}
               />
             </div>
+            <div className="space-y-2">
+              <Label htmlFor="sepay-api-key">SePay Webhook API Key</Label>
+              <Input
+                id="sepay-api-key"
+                value={sepayApiKey}
+                onChange={(event) => setSepayApiKey(event.target.value)}
+                placeholder="Ex: T2YJ..."
+              />
+              <p className="text-xs text-muted-foreground">
+                Get this from SePay Integration settings.
+              </p>
+            </div>
 
             <Button
               type="button"
               className="brutal-btn-primary w-full cursor-pointer"
-              disabled={isPending || !accountNumber.trim() || !accountName.trim()}
+              disabled={isPending || !accountNumber.trim() || !accountName.trim() || !sepayApiKey.trim()}
               onClick={() => void handleConnect()}
             >
               {isPending ? "Connecting..." : "Connect SePay"}

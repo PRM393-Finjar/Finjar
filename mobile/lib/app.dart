@@ -18,7 +18,8 @@ class FinjarApp extends StatelessWidget {
           theme: BrutalTheme.themeData,
           darkTheme: ThemeData(
             brightness: Brightness.dark,
-            scaffoldBackgroundColor: const Color(0xFF121212),
+            // Không dùng nền đen thuần — tránh cảm giác "màn hình đen" khi load.
+            scaffoldBackgroundColor: const Color(0xFF1A1A1A),
           ),
           routerConfig: appRouter,
         );

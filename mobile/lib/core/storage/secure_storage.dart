@@ -3,7 +3,10 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:finjar_mobile/core/auth/session_policy.dart';
 
 class SecureStorage {
-  static const _storage = FlutterSecureStorage();
+  // encryptedSharedPreferences tránh treo/blank trên một số máy Android 12+.
+  static const _storage = FlutterSecureStorage(
+    aOptions: AndroidOptions(encryptedSharedPreferences: true),
+  );
   static const _tokenKey = 'jwt_token';
   static const _onboardingKey = 'is_onboarding_completed';
   static const _lastLoginKey = 'last_login_at_ms';

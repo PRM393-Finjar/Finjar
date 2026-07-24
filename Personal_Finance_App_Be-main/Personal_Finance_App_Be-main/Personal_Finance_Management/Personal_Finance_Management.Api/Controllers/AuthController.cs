@@ -47,6 +47,6 @@ public class AuthController : ControllerBase
     public async Task<IActionResult> ResendVerification([FromBody] AuthRequest.ResendVerificationRequest request)
     {
         await _authService.ResendVerificationEmailAsync(request);
-        return Ok(new { message = "Nếu email tồn tại và chưa xác thực, chúng tôi đã gửi lại mã OTP." });
+        return Ok(new { message = "Mã OTP mới đã được gửi tới email của bạn." });
     }
 }

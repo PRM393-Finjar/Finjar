@@ -26,6 +26,7 @@ public class Request
         public string bankCode { get; set; }
         public string accountNumber { get; set; }
         public string accountName { get; set; }
+        public string sepayApiKey { get; set; }
         /// <summary>Optional starting balance before the first SePay webhook.</summary>
         public decimal? currentBalance { get; set; }
     }

@@ -87,6 +87,7 @@ export const financialAccountService = {
       bankCode: payload.bankCode,
       accountNumber: payload.accountNumber.trim(),
       accountName: payload.accountName.trim(),
+      sepayApiKey: payload.sepayApiKey.trim(),
       ...(payload.currentBalance !== undefined
         ? { currentBalance: payload.currentBalance }
         : {}),

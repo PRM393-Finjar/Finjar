@@ -30,8 +30,14 @@ using jarsService = Personal_Finance_Management.Service.Jar;
 using GroupJarService = Personal_Finance_Management.Service.GroupJar;
 using transactionService = Personal_Finance_Management.Service.Transaction;
 using dashboardService = Personal_Finance_Management.Service.Dashboard;
+
+// Local `dotnet run` does not load Docker Compose `.env` automatically.
+LoadLocalDotEnvFile();
+
 var builder = WebApplication.CreateBuilder(args);
 const string FrontendCorsPolicy = "FrontendCorsPolicy";
+
+builder.Services.AddMemoryCache();
 
 builder.Services.AddCors(options =>
 {
@@ -175,6 +181,38 @@ builder.Services.AddScoped<ImportService.IServices, ImportService.Service>();
 
 var app = builder.Build();
 
+// ===== MAIL CONFIG DIAGNOSTIC (temporary) =====
+{
+    var mailSection = app.Configuration.GetSection(LegacyMailOptions.SectionName);
+    var emailOpts = app.Services.GetRequiredService<Microsoft.Extensions.Options.IOptions<EmailOptions>>().Value;
+    using var mailScope = app.Services.CreateScope();
+    var resolvedSender = mailScope.ServiceProvider.GetRequiredService<IEmailSender>();
+    var envPassword = Environment.GetEnvironmentVariable("MailOptions__Password");
+
+    Console.WriteLine("===== MAIL CONFIG =====");
+    Console.WriteLine($"IEmailSender resolved as: {resolvedSender.GetType().Name}");
+    Console.WriteLine($"Email.UseSmtp: {emailOpts.UseSmtp}");
+    Console.WriteLine($"Email.SmtpHost: {emailOpts.SmtpHost}");
+    Console.WriteLine($"Email.SmtpPort: {emailOpts.SmtpPort}");
+    Console.WriteLine($"Email.FromAddress: {emailOpts.FromAddress}");
+    Console.WriteLine($"MailOptions.Mail: {mailSection["Mail"]}");
+    Console.WriteLine($"MailOptions.Host: {mailSection["Host"]}");
+    Console.WriteLine($"MailOptions.Port: {mailSection["Port"]}");
+    Console.WriteLine(string.IsNullOrWhiteSpace(mailSection["Password"])
+        ? "MailOptions.Password: EMPTY"
+        : "MailOptions.Password: OK");
+    Console.WriteLine(string.IsNullOrWhiteSpace(emailOpts.SmtpPassword)
+        ? "Email.SmtpPassword: EMPTY"
+        : "Email.SmtpPassword: OK");
+    Console.WriteLine(envPassword is null
+        ? "Env MailOptions__Password: null (not set in process)"
+        : string.IsNullOrWhiteSpace(envPassword)
+            ? "Env MailOptions__Password: EMPTY"
+            : "Env MailOptions__Password: SET");
+    Console.WriteLine("=======================");
+}
+// ===== END MAIL CONFIG DIAGNOSTIC =====
+
 // hien: khuc nay dung de tu dong apply database migration khi bien ApplyMigrations duoc bat
 app.ApplyDatabaseMigrations();
 if (app.Configuration.GetValue<bool>("SeedAccounts:Enabled"))
@@ -201,3 +239,59 @@ app.UseAuthorization();
 app.MapControllers();
 
 app.Run();
+
+static void LoadLocalDotEnvFile()
+{
+    var candidates = new[]
+    {
+        Path.Combine(Directory.GetCurrentDirectory(), ".env"),
+        Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "..", ".env")),
+        Path.GetFullPath(Path.Combine(Directory.GetCurrentDirectory(), "..", "..", ".env")),
+    };
+
+    Console.WriteLine("===== .ENV LOAD =====");
+    Console.WriteLine($"CWD: {Directory.GetCurrentDirectory()}");
+    Console.WriteLine($"BaseDirectory: {AppContext.BaseDirectory}");
+
+    foreach (var path in candidates.Distinct(StringComparer.OrdinalIgnoreCase))
+    {
+        var exists = File.Exists(path);
+        Console.WriteLine($"Candidate: {path} => {(exists ? "FOUND" : "missing")}");
+        if (!exists)
+        {
+            continue;
+        }
+
+        var loadedKeys = 0;
+        foreach (var rawLine in File.ReadAllLines(path))
+        {
+            var line = rawLine.Trim();
+            if (line.Length == 0 || line.StartsWith('#') || !line.Contains('='))
+            {
+                continue;
+            }
+
+            var separator = line.IndexOf('=');
+            var key = line[..separator].Trim();
+            var value = line[(separator + 1)..].Trim().Trim('"').Trim('\'');
+            if (key.Length == 0)
+            {
+                continue;
+            }
+
+            // Do not override values already set in the process / shell.
+            if (string.IsNullOrEmpty(Environment.GetEnvironmentVariable(key)))
+            {
+                Environment.SetEnvironmentVariable(key, value);
+                loadedKeys++;
+            }
+        }
+
+        Console.WriteLine($"Loaded .env from: {path} (set {loadedKeys} new env vars)");
+        Console.WriteLine("====================");
+        return;
+    }
+
+    Console.WriteLine("No .env file found in candidates.");
+    Console.WriteLine("====================");
+}
