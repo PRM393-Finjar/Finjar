@@ -1,9 +1,10 @@
 /// Tài khoản seed từ `appsettings.json` (backend local).
 /// Cần chạy API + PostgreSQL trước khi đăng nhập.
 class TestData {
-  static const userEmail = 'anhvietanh1123@gmail.com';
+  /// Tài khoản có sẵn trên DB local (PersonalFinanceManagementDb).
+  static const userEmail = 'vupho200304@gmail.com';
   static const userPassword = 'User@123456';
-  static const userUsername = 'hiendepzai';
+  static const userUsername = 'vupho200304';
   static const userFullName = 'Test User';
 
   static const adminEmail = 'admin@gmail.com';

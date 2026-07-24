@@ -94,7 +94,8 @@ public class Service : IService
 
     public async Task<Response.LoginResponse> Login(Request.LoginRequest request)
     {
-        var email = request.Email.Trim().ToLowerInvariant();
+        var email = request.Email?.Trim().ToLowerInvariant()
+            ?? throw AppValidationException.BadRequest("Email is required.", "email", "REQUIRED");
         var user = await _dbContext.Accounts
             .Include(u => u.Role)
             .FirstOrDefaultAsync(u => u.Email == email);

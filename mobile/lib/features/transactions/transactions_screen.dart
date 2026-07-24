@@ -912,6 +912,12 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
             ),
             actions: [
               IconButton(
+                tooltip: 'Scan AI hóa đơn',
+                onPressed: () => GoRouter.of(context).push('/imports/ocr'),
+                icon: Icon(Icons.document_scanner_outlined,
+                    color: BrutalColors.ink),
+              ),
+              IconButton(
                 onPressed: _clearFilters,
                 icon: Icon(Icons.filter_alt_off, color: BrutalColors.ink),
               ),

@@ -60,6 +60,6 @@ public class SmtpEmailSender : IEmailSender
 
         await client.SendAsync(message, cancellationToken);
         await client.DisconnectAsync(true, cancellationToken);
-        _logger.LogInformation("Verification email sent via SMTP to {Email}", toEmail);
+        _logger.LogInformation("Email sent via SMTP to {Email}", toEmail);
     }
 }

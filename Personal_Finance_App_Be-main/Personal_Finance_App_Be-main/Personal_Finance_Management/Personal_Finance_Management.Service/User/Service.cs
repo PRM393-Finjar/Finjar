@@ -14,6 +14,7 @@ public class Service : IService
 {
     private const string DefaultTimeZoneId = "Asia/Ho_Chi_Minh";
     private const string WindowsDefaultTimeZoneId = "SE Asia Standard Time";
+    private const int FreeDailyTransactionQuota = 10;
 
     private readonly AppDbContext _dbContext;
     private readonly IHttpContextAccessor _httpContext;
@@ -32,24 +33,40 @@ public class Service : IService
     {
         var userIdGuid = GetCurrentUserId();
 
-        var query = _dbContext.Accounts.Where(x => x.Id == userIdGuid);
-        var selectedQuery = query.Select(x => new Response.GetUserInforResponse()
+        var user = await _dbContext.Accounts.FirstOrDefaultAsync(x => x.Id == userIdGuid)
+            ?? throw new Exception("User not found");
+
+        var isPremium = user.PremiumExpiresAt != null && user.PremiumExpiresAt > DateTimeOffset.UtcNow;
+        var quotaWindow = GetDailyQuotaWindow(GetActiveQuotaTimeZoneId(user), DateTimeOffset.UtcNow);
+        var usedToday = await _dbContext.Transactions
+            .AsNoTracking()
+            .CountAsync(x => x.UserId == user.Id
+                             && x.CreatedAt >= quotaWindow.StartUtc
+                             && x.CreatedAt < quotaWindow.EndUtc);
+
+        var limit = FreeDailyTransactionQuota;
+        var remaining = isPremium
+            ? FreeDailyTransactionQuota
+            : Math.Max(0, FreeDailyTransactionQuota - usedToday);
+
+        return new Response.GetUserInforResponse
         {
-            Id = x.Id,
-            UserName = x.Username,
-            FirstName = x.FirstName,
-            LastName = x.LastName,
-            Email = x.Email,
-            Phone = x.Phone,
-            AvatarUrl = x.AvatarUrl,
-            PreferredCurrency = x.PreferredCurrency,
-            TimeZoneId = string.IsNullOrWhiteSpace(x.TimeZoneId) ? DefaultTimeZoneId : x.TimeZoneId,
-            IsOnboardingCompleted = x.IsOnboardingCompleted,
-            IsPremium = x.PremiumExpiresAt != null && x.PremiumExpiresAt > DateTimeOffset.UtcNow,
-            PremiumExpiresAt = x.PremiumExpiresAt
-        });
-        var result = await selectedQuery.FirstOrDefaultAsync();
-        return result ?? throw new Exception("User not found");
+            Id = user.Id,
+            UserName = user.Username,
+            FirstName = user.FirstName,
+            LastName = user.LastName,
+            Email = user.Email,
+            Phone = user.Phone,
+            AvatarUrl = user.AvatarUrl,
+            PreferredCurrency = user.PreferredCurrency,
+            TimeZoneId = string.IsNullOrWhiteSpace(user.TimeZoneId) ? DefaultTimeZoneId : user.TimeZoneId,
+            IsOnboardingCompleted = user.IsOnboardingCompleted,
+            IsPremium = isPremium,
+            PremiumExpiresAt = user.PremiumExpiresAt,
+            DailyTransactionLimit = limit,
+            DailyTransactionUsed = usedToday,
+            DailyTransactionRemaining = remaining
+        };
     }
 
     public async Task<BaseResponse.PagedResponse<Response.AdminUserResponse>> GetAdminUsers(Request.GetAdminUsersRequest request)

@@ -18,6 +18,11 @@ public class Response
         public bool IsOnboardingCompleted { get; set; }
         public bool IsPremium { get; set; }
         public DateTimeOffset? PremiumExpiresAt { get; set; }
+        /// <summary>Free plan: max transactions per local day. Null/ignored when premium.</summary>
+        public int DailyTransactionLimit { get; set; } = 10;
+        /// <summary>Transactions created today (user timezone). Premium still reports usage.</summary>
+        public int DailyTransactionUsed { get; set; }
+        public int DailyTransactionRemaining { get; set; }
     }
 
     public class UpdateUserResponse

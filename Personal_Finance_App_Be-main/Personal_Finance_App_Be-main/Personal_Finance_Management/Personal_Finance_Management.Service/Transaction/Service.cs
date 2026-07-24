@@ -18,7 +18,8 @@ public class Service : IService
     private const string WindowsDefaultTimeZoneId = "SE Asia Standard Time";
     private const string SePayProviderCode = "SEPAY";
     private const string SePayProviderName = "SePay";
-    private const string ActiveSyncStatus = "Active";
+    // Prefer Synced so connect/webhook works on DBs that have not applied Active constraint yet.
+    private const string ActiveSyncStatus = "Synced";
 
     private readonly AppDbContext _dbContext;
     private readonly IHttpContextAccessor _httpContext;

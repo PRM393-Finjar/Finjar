@@ -182,6 +182,25 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
           return;
         }
       }
+      setState(() {
+        _errorMessage = 'Đăng ký thất bại (mã ${response.statusCode}).';
+      });
+    } on DioException catch (e) {
+      setState(() {
+        if (e.type == DioExceptionType.connectionError ||
+            e.type == DioExceptionType.connectionTimeout ||
+            e.type == DioExceptionType.receiveTimeout ||
+            e.type == DioExceptionType.sendTimeout) {
+          _errorMessage =
+              'Không kết nối được backend tại ${Env.apiBaseUrl}. Kiểm tra Wi‑Fi / BE local đang chạy.';
+        } else {
+          final msg = e.response?.data is Map
+              ? (e.response?.data['message'] ?? e.response?.data['Message'] ?? e.response?.data['error'])
+                  ?.toString()
+              : null;
+          _errorMessage = msg ?? 'Đăng ký thất bại (${e.response?.statusCode ?? e.message}).';
+        }
+      });
     } catch (e) {
       String msg = 'Đăng ký thất bại.';
       if (e is DioException) {
