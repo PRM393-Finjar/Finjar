@@ -8,6 +8,7 @@ import 'package:finjar_mobile/core/config/test_data.dart';
 import 'package:finjar_mobile/core/theme/brutal_theme.dart';
 import 'package:finjar_mobile/core/storage/secure_storage.dart';
 import 'package:finjar_mobile/core/network/api_client.dart';
+import 'package:finjar_mobile/features/auth/otp_api_error.dart';
 
 class AuthScreen extends StatefulWidget {
   const AuthScreen({Key? key}) : super(key: key);
@@ -268,16 +269,20 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
     setState(() {
       _isLoading = true;
       _errorMessage = null;
+      _infoMessage = null;
     });
     try {
       await _apiClient.post('auth/resend-verification', data: {'email': _pendingEmail.trim()});
       setState(() {
-        _infoMessage = 'Đã gửi lại mã OTP (nếu email hợp lệ).';
+        _infoMessage = 'Đã gửi lại mã OTP tới $_pendingEmail.';
       });
     } on DioException catch (e) {
+      final otpError = OtpApiError.fromDio(e);
       setState(() {
-        _errorMessage = e.response?.data?['message']?.toString() ?? 'Không gửi được mã OTP.';
+        _errorMessage = otpError.message;
       });
+      if (!mounted) return;
+      otpError.applyNavigation(context);
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }

@@ -86,18 +86,32 @@ public class ValidationServices : IServices
 
         if (await _dbContext.Accounts.AnyAsync(a => a.Username.ToLower() == username.ToLower()))
         {
-            throw AppValidationException.Conflict("Username already exists.", "username", "AUTH_CONFLICT");
+            throw AppValidationException.Conflict("Tên đăng nhập đã tồn tại.", "username", "AUTH_CONFLICT");
         }
 
+        // Email đã có account (đã hoàn tất đăng ký) → không cho đăng ký lại.
         if (await _dbContext.Accounts.AnyAsync(a => a.Email.ToLower() == email))
         {
-            throw AppValidationException.Conflict("Email already exists.", "email", "AUTH_CONFLICT");
+            throw AppValidationException.Conflict(
+                "Email này đã được đăng ký. Vui lòng đăng nhập hoặc dùng email khác.",
+                "email",
+                "EMAIL_ALREADY_REGISTERED");
+        }
+
+        // Email đang nằm ở pending (đã đăng ký nhưng chưa xác thực OTP).
+        // Trước đây bỏ qua → StartPendingRegistrationAsync upsert + gửi OTP mới (không báo lỗi).
+        if (await _dbContext.PendingRegistrations.AnyAsync(p => p.Email.ToLower() == email))
+        {
+            throw AppValidationException.Conflict(
+                "Email này đang chờ xác thực OTP. Vui lòng nhập mã đã gửi hoặc dùng chức năng gửi lại mã.",
+                "email",
+                "EMAIL_PENDING_VERIFICATION");
         }
 
         if (await _dbContext.PendingRegistrations.AnyAsync(p =>
-                p.Username.ToLower() == username.ToLower() && p.Email != email))
+                p.Username.ToLower() == username.ToLower()))
         {
-            throw AppValidationException.Conflict("Username already exists.", "username", "AUTH_CONFLICT");
+            throw AppValidationException.Conflict("Tên đăng nhập đã tồn tại.", "username", "AUTH_CONFLICT");
         }
     }
 

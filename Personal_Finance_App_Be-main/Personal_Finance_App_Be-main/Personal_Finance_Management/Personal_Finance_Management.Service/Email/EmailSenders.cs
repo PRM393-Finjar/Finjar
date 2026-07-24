@@ -8,17 +8,29 @@ namespace Personal_Finance_Management.Service.Email;
 
 public class LoggingEmailSender : IEmailSender
 {
+    private readonly EmailOptions _options;
     private readonly ILogger<LoggingEmailSender> _logger;
 
-    public LoggingEmailSender(ILogger<LoggingEmailSender> logger)
+    public LoggingEmailSender(IOptions<EmailOptions> options, ILogger<LoggingEmailSender> logger)
     {
+        _options = options.Value;
         _logger = logger;
     }
 
     public Task SendAsync(string toEmail, string subject, string htmlBody, CancellationToken cancellationToken = default)
     {
+        if (!_options.AllowLoggingSender)
+        {
+            _logger.LogError(
+                "SMTP is not configured (UseSmtp=false) and AllowLoggingSender=false. Refusing to fake-send email to {Email}.",
+                toEmail);
+            throw new InvalidOperationException(
+                "Email SMTP is not configured. Set MailOptions (or Email:UseSmtp=true) with a valid App Password, " +
+                "or set Email:AllowLoggingSender=true only for local offline demos.");
+        }
+
         _logger.LogWarning(
-            "DEV EMAIL (not sent via SMTP) -> To: {Email}, Subject: {Subject}, Body preview: {Preview}",
+            "DEV EMAIL (AllowLoggingSender=true, not sent via SMTP) -> To: {Email}, Subject: {Subject}, Body preview: {Preview}",
             toEmail,
             subject,
             htmlBody.Length > 500 ? htmlBody[..500] + "..." : htmlBody);
@@ -51,15 +63,28 @@ public class SmtpEmailSender : IEmailSender
         message.Body = new TextPart("html") { Text = htmlBody };
 
         using var client = new SmtpClient();
-        await client.ConnectAsync(_options.SmtpHost, _options.SmtpPort, _options.SmtpUseSsl ? SecureSocketOptions.StartTls : SecureSocketOptions.Auto, cancellationToken);
-
-        if (!string.IsNullOrWhiteSpace(_options.SmtpUsername))
+        try
         {
-            await client.AuthenticateAsync(_options.SmtpUsername, _options.SmtpPassword, cancellationToken);
-        }
+            _logger.LogInformation("SMTP send starting -> To: {Email}, Host: {Host}:{Port}", toEmail, _options.SmtpHost, _options.SmtpPort);
+            await client.ConnectAsync(
+                _options.SmtpHost,
+                _options.SmtpPort,
+                _options.SmtpUseSsl ? SecureSocketOptions.StartTls : SecureSocketOptions.Auto,
+                cancellationToken);
 
-        await client.SendAsync(message, cancellationToken);
-        await client.DisconnectAsync(true, cancellationToken);
-        _logger.LogInformation("Email sent via SMTP to {Email}", toEmail);
+            if (!string.IsNullOrWhiteSpace(_options.SmtpUsername))
+            {
+                await client.AuthenticateAsync(_options.SmtpUsername, _options.SmtpPassword, cancellationToken);
+            }
+
+            await client.SendAsync(message, cancellationToken);
+            await client.DisconnectAsync(true, cancellationToken);
+            _logger.LogInformation("SMTP send success -> To: {Email}", toEmail);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "SMTP send failed -> To: {Email}, Host: {Host}:{Port}", toEmail, _options.SmtpHost, _options.SmtpPort);
+            throw;
+        }
     }
 }
