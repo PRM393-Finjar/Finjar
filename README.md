@@ -14,7 +14,7 @@ For an existing local PostgreSQL database, run this once after pulling SePay
 changes so `financial_accounts.sync_status` accepts `Active`:
 
 ```powershell
-Get-Content .\database\fix_sepay_constraint.sql | docker exec -i finjar-postgres psql -U postgres -d PersonalFinanceManagementDb
+Get-Content .\database\fix_sepay_constraint.sql | docker exec -i personal-finance-postgres psql -U postgres -d PersonalFinanceManagementDb
 ```
 
 Clean databases that run the EF migration
@@ -61,11 +61,13 @@ docker compose up --build
 
 Backend đã có `appsettings.json` local-safe trong repo. Nếu chạy bằng Docker Compose thì PostgreSQL cũng được tạo tự động.
 
-**Backend bằng `dotnet run` nếu không dùng Docker Compose:**
+**Backend bằng `dotnet run` nếu không dùng full Compose (chỉ cần Postgres):**
 
 ```powershell
-docker run -d --name personal-finance-postgres -e POSTGRES_PASSWORD=postgres123 -e POSTGRES_DB=PersonalFinanceManagementDb -p 5432:5432 postgres:16
-cd Personal_Finance_App_Be-main\Personal_Finance_App_Be-main\Personal_Finance_Management\Personal_Finance_Management.Api
+cd Personal_Finance_App_Be-main\Personal_Finance_App_Be-main
+docker compose up -d db
+# DB: personal-finance-postgres @ localhost:5432 / PersonalFinanceManagementDb / postgres / postgres123
+cd Personal_Finance_Management\Personal_Finance_Management.Api
 dotnet run --launch-profile http
 # API: http://localhost:5284
 ```

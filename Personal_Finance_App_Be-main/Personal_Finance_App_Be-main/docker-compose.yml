@@ -39,11 +39,11 @@ services:
       CloudinaryOptions__CloudName: ${CLOUDINARY_CLOUD_NAME:-}
       CloudinaryOptions__ApiKey: ${CLOUDINARY_API_KEY:-}
       CloudinaryOptions__ApiSecret: ${CLOUDINARY_API_SECRET:-}
-      MailOptions__Mail: ${MAIL_ADDRESS:-}
-      MailOptions__DisplayName: ${MAIL_DISPLAY_NAME:-Personal Finance}
-      MailOptions__Password: ${MAIL_PASSWORD:-}
-      MailOptions__Host: ${MAIL_HOST:-smtp.gmail.com}
-      MailOptions__Port: ${MAIL_PORT:-587}
+      MailOptions__Mail: ${MailOptions__Mail:-}
+      MailOptions__DisplayName: ${MailOptions__DisplayName:-Finjar}
+      MailOptions__Password: ${MailOptions__Password:-}
+      MailOptions__Host: ${MailOptions__Host:-smtp.gmail.com}
+      MailOptions__Port: ${MailOptions__Port:-587}
       PayOSOptions__ClientId: ${PAYOS_CLIENT_ID:-}
       PayOSOptions__ApiKey: ${PAYOS_API_KEY:-}
       PayOSOptions__ChecksumKey: ${PAYOS_CHECKSUM_KEY:-}

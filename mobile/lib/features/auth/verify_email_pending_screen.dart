@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:finjar_mobile/core/network/api_client.dart';
 import 'package:finjar_mobile/core/theme/brutal_theme.dart';
+import 'package:finjar_mobile/features/auth/otp_api_error.dart';
 
 class VerifyEmailPendingScreen extends StatefulWidget {
   final String email;
@@ -66,12 +67,15 @@ class _VerifyEmailPendingScreenState extends State<VerifyEmailPendingScreen> {
     try {
       await _apiClient.post('auth/resend-verification', data: {'email': widget.email.trim()});
       setState(() {
-        _infoMessage = 'Đã gửi lại mã OTP (nếu email hợp lệ).';
+        _infoMessage = 'Đã gửi lại mã OTP tới ${widget.email.trim()}.';
       });
     } on DioException catch (e) {
+      final otpError = OtpApiError.fromDio(e);
       setState(() {
-        _errorMessage = e.response?.data?['message']?.toString() ?? 'Không gửi được mã OTP.';
+        _errorMessage = otpError.message;
       });
+      if (!mounted) return;
+      otpError.applyNavigation(context);
     } finally {
       if (mounted) setState(() => _isSending = false);
     }
