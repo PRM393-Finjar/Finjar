@@ -51,10 +51,13 @@ final GoRouter appRouter = GoRouter(
     }
 
     // Đồng bộ cờ local với BE nếu lệch (ví dụ cài lại app / clear data).
+    // Timeout ngắn để tránh treo màn hình đen khi API chậm/không tới được.
     if (!onboardingCompleted && !isOnboarding) {
       try {
         final api = ApiClient();
-        final me = await api.get('user/me');
+        final me = await api
+            .get('user/me')
+            .timeout(const Duration(seconds: 5));
         final data = me.data;
         final done = data is Map &&
             (data['isOnboardingCompleted'] == true ||
