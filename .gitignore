@@ -46,3 +46,5 @@ Personal_Finance_App_Be-main/**/appsettings.*.local.json
 .flutter-plugins
 **/.flutter-plugins
 **/.flutter-plugins-dependencies
+
+ocr-service/.env

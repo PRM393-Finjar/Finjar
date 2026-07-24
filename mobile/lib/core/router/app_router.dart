@@ -16,6 +16,7 @@ import 'package:finjar_mobile/features/goals/goals_screen.dart';
 import 'package:finjar_mobile/features/notifications/notifications_screen.dart';
 import 'package:finjar_mobile/features/reminders/reminders_screen.dart';
 import 'package:finjar_mobile/features/jars/group_jar_detail_screen.dart';
+import 'package:finjar_mobile/features/imports/ocr_import_screen.dart';
 
 final GlobalKey<NavigatorState> _rootNavigatorKey =
     GlobalKey<NavigatorState>(debugLabel: 'root');
@@ -151,6 +152,10 @@ final GoRouter appRouter = GoRouter(
       builder: (context, state) => GroupJarDetailScreen(
         groupJarId: state.pathParameters['id'] ?? '',
       ),
+    ),
+    GoRoute(
+      path: '/imports/ocr',
+      builder: (context, state) => const OcrImportScreen(),
     ),
   ],
 );

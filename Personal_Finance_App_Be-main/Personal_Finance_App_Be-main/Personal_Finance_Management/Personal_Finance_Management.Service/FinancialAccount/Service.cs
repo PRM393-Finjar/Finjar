@@ -280,6 +280,12 @@ public class Service : IService
             throw AppValidationException.BadRequest("Account name is too long", "accountName", "ACCOUNT_NAME_TOO_LONG");
         }
 
+        var startingBalance = request.currentBalance ?? 0m;
+        if (startingBalance < 0)
+        {
+            throw AppValidationException.BadRequest("Starting balance cannot be negative", "currentBalance", "INVALID_BALANCE");
+        }
+
         var existedLinkedAccount = await _dbContext.FinancialAccounts.AnyAsync(x =>
             x.UserId == userIdGuid
             && x.IsActive
@@ -308,7 +314,7 @@ public class Service : IService
             ExternalAccountRef = accountNumber,
             MaskedAccountNumber = ServiceTextHelper.MaskTrailing(accountNumber),
             AccountHolderName = accountName,
-            CurrentBalance = 0,
+            CurrentBalance = startingBalance,
             Currency = "VND",
             SyncStatus = ActiveSyncStatus,
             UserId = user.Id,
@@ -389,9 +395,10 @@ public class Service : IService
         }
 
         if (string.Equals(query.ConnectionMode, "LinkedApi", StringComparison.OrdinalIgnoreCase)
-            && request.currentBalance.HasValue)
+            && request.currentBalance.HasValue
+            && request.currentBalance.Value < 0)
         {
-            throw AppValidationException.BadRequest("Linked bank account balance cannot be updated manually.", "currentBalance", "LINKED_ACCOUNT_BALANCE_READ_ONLY");
+            throw AppValidationException.BadRequest("Linked bank account balance cannot be negative.", "currentBalance", "INVALID_BALANCE");
         }
 
         query.Name = request.name ?? query.Name;

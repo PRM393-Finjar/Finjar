@@ -85,7 +85,19 @@ public class Service : IService
         pending.UpdatedAt = now;
 
         await _dbContext.SaveChangesAsync(cancellationToken);
-        await SendOtpEmailAsync(normalizedEmail, pending.FirstName, otp, cancellationToken);
+        try
+        {
+            await SendOtpEmailAsync(normalizedEmail, pending.FirstName, otp, cancellationToken);
+            _logger.LogInformation("OTP email sent via SMTP to {Email}", normalizedEmail);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to send OTP email to {Email}. Dev OTP: {Otp}", normalizedEmail, otp);
+            throw AppValidationException.BadRequest(
+                "Không gửi được email OTP. Kiểm tra cấu hình Gmail SMTP (App Password).",
+                "email",
+                "EMAIL_SEND_FAILED");
+        }
         _logger.LogInformation("Pending registration OTP for {Email} (dev log OTP: {Otp})", normalizedEmail, otp);
     }
 

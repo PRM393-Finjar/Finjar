@@ -70,9 +70,9 @@ services:
       - key: CloudinaryOptions__ApiSecret
         sync: false
       - key: MailOptions__Mail
-        sync: false
+        value: uwu72909@gmail.com
       - key: MailOptions__DisplayName
-        value: Personal Finance
+        value: Finjar
       - key: MailOptions__Password
         sync: false
       - key: MailOptions__Host

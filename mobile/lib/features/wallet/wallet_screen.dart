@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:dio/dio.dart';
 import 'package:finjar_mobile/core/theme/brutal_theme.dart';
 import 'package:finjar_mobile/core/network/api_client.dart';
 import 'package:finjar_mobile/core/theme/app_settings.dart';
@@ -284,6 +285,7 @@ class _WalletScreenState extends State<WalletScreen>
     required String bankCode,
     required String accountNumber,
     required String accountName,
+    double currentBalance = 0,
   }) async {
     try {
       await _apiClient.post('financial-accounts/sepay/connect', data: {
@@ -291,20 +293,43 @@ class _WalletScreenState extends State<WalletScreen>
         'bankCode': bankCode,
         'accountNumber': accountNumber,
         'accountName': accountName,
+        'currentBalance': currentBalance,
       });
       _fetchAccounts();
       AppSettings().triggerDashboardRefresh();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Lien ket SePay thanh cong!')),
+          const SnackBar(content: Text('Liên kết SePay thành công!')),
+        );
+      }
+    } on DioException catch (e) {
+      final data = e.response?.data;
+      String message = 'Không thể liên kết SePay. Kiểm tra số tài khoản.';
+      if (data is Map) {
+        message = (data['message'] ?? data['error'] ?? message).toString();
+        final details = data['details'];
+        if (details is Map && details['code'] != null) {
+          final code = details['code'].toString();
+          if (code == 'SEPAY_ACCOUNT_ALREADY_CONNECTED') {
+            message = 'Tài khoản ngân hàng này đã được liên kết SePay.';
+          } else if (code == 'SEPAY_BANK_UNSUPPORTED') {
+            message = 'Ngân hàng chưa được hỗ trợ. Chọn VCB, MB hoặc TCB.';
+          }
+        }
+      } else if (e.type == DioExceptionType.connectionError ||
+          e.type == DioExceptionType.connectionTimeout) {
+        message =
+            'Không kết nối được API. Kiểm tra mạng hoặc backend đang chạy.';
+      }
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(message)),
         );
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-              content:
-                  Text('Khong the lien ket SePay. Kiem tra so tai khoan.')),
+          SnackBar(content: Text('Không thể liên kết SePay: $e')),
         );
       }
     }
@@ -318,10 +343,28 @@ class _WalletScreenState extends State<WalletScreen>
       });
       _fetchAccounts();
       AppSettings().triggerDashboardRefresh();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Cập nhật tài khoản thành công!')),
+        );
+      }
+    } on DioException catch (e) {
+      final data = e.response?.data;
+      final message = data is Map
+          ? (data['message'] ?? data['error'] ?? 'Không thể cập nhật tài khoản.')
+              .toString()
+          : 'Không thể cập nhật tài khoản.';
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(message)),
+        );
+      }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Không thể cập nhật tài khoản.')),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Không thể cập nhật tài khoản.')),
+        );
+      }
     }
   }
 
@@ -573,6 +616,12 @@ class _WalletScreenState extends State<WalletScreen>
                       controller: sePayAccountNameController,
                       textCapitalization: TextCapitalization.words,
                     ),
+                    const SizedBox(height: 12),
+                    BrutalCurrencyInput(
+                      label: 'So du hien tai',
+                      hint: '1.000.000',
+                      controller: balanceController,
+                    ),
                   ] else ...[
                     BrutalInput(
                       label: 'Ten tai khoan / Ngan hang',
@@ -608,6 +657,7 @@ class _WalletScreenState extends State<WalletScreen>
                           bankCode: sePayBankCode,
                           accountNumber: accountNumber,
                           accountName: accountName,
+                          currentBalance: balanceController.rawValue,
                         );
                         if (mounted) Navigator.pop(context);
                         return;
@@ -678,6 +728,7 @@ class _WalletScreenState extends State<WalletScreen>
   }
 
   void _showEditAccountDialog(dynamic acc) {
+    final isLinkedSePay = _isLinkedSePayAccount(acc);
     final editNameController = TextEditingController(text: acc['name']);
     final initialBalance =
         (acc['balance'] ?? acc['currentBalance'] ?? 0.0).toDouble();
@@ -704,8 +755,18 @@ class _WalletScreenState extends State<WalletScreen>
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Text('Chỉnh sửa tài khoản 💳',
+              Text(
+                  isLinkedSePay
+                      ? 'Chỉnh số dư SePay'
+                      : 'Chỉnh sửa tài khoản',
                   style: BrutalStyles.titleStyle(size: 20)),
+              if (isLinkedSePay) ...[
+                const SizedBox(height: 8),
+                Text(
+                  'Số dư có thể đặt tay. Khi có webhook SePay, số dư sẽ được đồng bộ lại.',
+                  style: BrutalStyles.bodyStyle(size: 12, color: BrutalColors.grey),
+                ),
+              ],
               const SizedBox(height: 16),
               BrutalInput(
                 label: 'Tên tài khoản / Ngân hàng',
@@ -1269,16 +1330,12 @@ class _WalletScreenState extends State<WalletScreen>
                     IconButton(
                       icon: Icon(
                         Icons.edit_outlined,
-                        color: isLinkedSePay
-                            ? BrutalColors.grey
-                            : BrutalColors.ink,
+                        color: BrutalColors.ink,
                         size: 20,
                       ),
                       padding: EdgeInsets.zero,
                       constraints: const BoxConstraints(),
-                      onPressed: isLinkedSePay
-                          ? null
-                          : () => _showEditAccountDialog(acc),
+                      onPressed: () => _showEditAccountDialog(acc),
                     ),
                     const SizedBox(width: 8),
                     IconButton(
@@ -1326,19 +1383,13 @@ class _WalletScreenState extends State<WalletScreen>
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
-        // Group Savings Jars Section Header
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text('👥 HŨ TIẾT KIỆM NHÓM',
-                style: BrutalStyles.titleStyle(size: 16)),
-            BrutalButton(
-              text: '+ TẠO HŨ NHÓM',
-              isFullWidth: false,
-              color: BrutalColors.purple,
-              onTap: _showCreateGroupJarDialog,
-            ),
-          ],
+        // Group Savings Jars — put first & full-width so it is hard to miss
+        Text('HŨ TIẾT KIỆM NHÓM', style: BrutalStyles.titleStyle(size: 16)),
+        const SizedBox(height: 8),
+        BrutalButton(
+          text: '+ TẠO HŨ NHÓM',
+          color: BrutalColors.purple,
+          onTap: _showCreateGroupJarDialog,
         ),
         const SizedBox(height: 12),
 
@@ -1346,15 +1397,16 @@ class _WalletScreenState extends State<WalletScreen>
           Container(
             padding: const EdgeInsets.all(16),
             margin: const EdgeInsets.only(bottom: 20),
-            decoration: BrutalStyles.cardDecoration(color: BrutalColors.cardBg),
+            decoration: BrutalStyles.cardDecoration(color: BrutalColors.purple),
             child: Column(
               children: [
-                Text('Chưa có hũ tiết kiệm nhóm nào.',
-                    style: BrutalStyles.bodyStyle(size: 13, color: BrutalColors.grey)),
+                Text('Chưa có hũ nhóm',
+                    style: BrutalStyles.titleStyle(size: 15)),
                 const SizedBox(height: 8),
-                Text('Tạo hũ nhóm để cùng mời bạn bè nạp tiền & chat trực tiếp!',
+                Text(
+                    'Bấm nút phía trên để tạo hũ, mời bạn bè, nạp tiền và chat trong nhóm.',
                     textAlign: TextAlign.center,
-                    style: BrutalStyles.bodyStyle(size: 12, color: BrutalColors.purple, weight: FontWeight.w700)),
+                    style: BrutalStyles.bodyStyle(size: 13, weight: FontWeight.w700)),
               ],
             ),
           )

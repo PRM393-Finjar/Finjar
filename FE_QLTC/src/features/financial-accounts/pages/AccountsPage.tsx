@@ -148,13 +148,12 @@ export function AccountsPage() {
 
   const submitEdit = async () => {
     if (!editItem) return;
-    const isLinked = editItem.connectionMode === "LinkedApi";
     try {
       await updateAcc({
         id: editItem.id,
         payload: {
           name: eName.trim(),
-          currentBalance: isLinked ? undefined : Number(eBalance) || 0,
+          currentBalance: Number(eBalance) || 0,
           isDefault: eDefault,
         },
       });
@@ -545,8 +544,12 @@ export function AccountsPage() {
                   type="number"
                   value={eBalance}
                   onChange={(e) => setEBalance(e.target.value)}
-                  disabled={editItem.connectionMode === "LinkedApi"}
                 />
+                {editItem.connectionMode === "LinkedApi" ? (
+                  <p className="text-xs text-neutral-500">
+                    Số dư SePay có thể chỉnh tay; webhook sẽ đồng bộ lại khi có giao dịch.
+                  </p>
+                ) : null}
               </div>
               <label className="flex cursor-pointer items-center gap-2 text-sm">
                 <input

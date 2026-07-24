@@ -34,6 +34,7 @@ export interface ConnectSePayFinancialAccountPayload {
   bankCode: "VCB" | "MB" | "TCB";
   accountNumber: string;
   accountName: string;
+  currentBalance?: number;
 }
 
 export interface SePayConnectionStatus {

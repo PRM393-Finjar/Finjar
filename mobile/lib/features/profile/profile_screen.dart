@@ -29,6 +29,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
   String? _avatarUrl;
   bool _isPremium = false;
   DateTime? _premiumExpiresAt;
+  int _dailyTransactionUsed = 0;
+  int _dailyTransactionLimit = 10;
+  int _dailyTransactionRemaining = 10;
   int _premiumAmount = 29000;
   int _premiumDurationDays = 30;
   bool _isUpgrading = false;
@@ -72,6 +75,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
           _premiumExpiresAt = expiresRaw == null
               ? null
               : DateTime.tryParse(expiresRaw.toString())?.toLocal();
+          _dailyTransactionUsed = _asInt(
+              data['dailyTransactionUsed'] ?? data['DailyTransactionUsed'], 0);
+          _dailyTransactionLimit = _asInt(
+              data['dailyTransactionLimit'] ?? data['DailyTransactionLimit'],
+              10);
+          _dailyTransactionRemaining = _asInt(
+              data['dailyTransactionRemaining'] ??
+                  data['DailyTransactionRemaining'],
+              _dailyTransactionLimit);
         });
       }
 
@@ -102,6 +114,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
+  }
+
+  int _asInt(dynamic value, int fallback) {
+    if (value is int) return value;
+    if (value is num) return value.toInt();
+    return int.tryParse(value?.toString() ?? '') ?? fallback;
   }
 
   Future<void> _upgradePremium() async {
@@ -662,6 +680,33 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             text: 'ĐỔI TÊN HIỂN THỊ',
                             color: BrutalColors.cardBg,
                             onTap: _showEditNameDialog,
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+
+                    // ── Daily transaction quota ────────────────
+                    Text('Hạn mức giao dịch ngày',
+                        style: BrutalStyles.titleStyle(size: 18)),
+                    const SizedBox(height: 12),
+                    BrutalCard(
+                      color: BrutalColors.info,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            _isPremium
+                                ? 'Premium: không giới hạn giao dịch/ngày'
+                                : 'Free: $_dailyTransactionUsed/$_dailyTransactionLimit giao dịch hôm nay',
+                            style: BrutalStyles.titleStyle(size: 16),
+                          ),
+                          const SizedBox(height: 6),
+                          Text(
+                            _isPremium
+                                ? 'Bạn có thể tạo giao dịch không giới hạn.'
+                                : 'Còn $_dailyTransactionRemaining lượt. Hết lượt thì đợi ngày mai hoặc nâng Premium.',
+                            style: BrutalStyles.bodyStyle(size: 13),
                           ),
                         ],
                       ),
