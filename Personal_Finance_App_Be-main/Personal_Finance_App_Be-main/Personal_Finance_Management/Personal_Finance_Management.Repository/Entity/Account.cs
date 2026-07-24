@@ -15,6 +15,7 @@ public class Account : BaseEntity, IAudictableEntity
     public string? StatusReason { get; set; }
     public string PreferredCurrency { get; set; } = "VND";
     public string? TimeZoneId { get; set; }
+    public string? SePayWebhookApiKey { get; set; }
     public string? QuotaTimeZoneId { get; set; }
     public DateTimeOffset? QuotaTimeZoneChangeEffectiveAt { get; set; }
     public bool IsOnboardingCompleted { get; set; } = false;

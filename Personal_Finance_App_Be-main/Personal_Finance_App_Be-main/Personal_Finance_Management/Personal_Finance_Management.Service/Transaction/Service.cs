@@ -1222,14 +1222,24 @@ public class Service : IService
             throw AppValidationException.BadRequest("Request body is required.", "body", "REQUIRED");
         }
 
-        var configuredWebhookApiKey = _configuration["SePayOptions:WebhookApiKey"]
-                                      ?? _configuration["SePay:WebhookApiKey"];
-        if (string.IsNullOrWhiteSpace(configuredWebhookApiKey))
+        if (string.IsNullOrWhiteSpace(authorization))
         {
-            throw AppValidationException.BadRequest("SePay webhook API key is not configured.", "SePay:WebhookApiKey", "SEPAY_CONFIG_MISSING");
+            throw AppValidationException.BadRequest("Invalid SePay webhook API key.", "Authorization", "SEPAY_WEBHOOK_UNAUTHORIZED");
         }
 
-        if (!IsValidSePayApiKey(authorization, configuredWebhookApiKey))
+        var providedApiKey = authorization.Trim();
+        const string apiKeyPrefix = "Apikey ";
+        if (providedApiKey.StartsWith(apiKeyPrefix, StringComparison.OrdinalIgnoreCase))
+        {
+            providedApiKey = providedApiKey[apiKeyPrefix.Length..].Trim();
+        }
+        else if (providedApiKey.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase))
+        {
+            providedApiKey = providedApiKey["Bearer ".Length..].Trim();
+        }
+
+        var account = await _dbContext.Accounts.FirstOrDefaultAsync(x => x.SePayWebhookApiKey == providedApiKey);
+        if (account == null)
         {
             throw AppValidationException.BadRequest("Invalid SePay webhook API key.", "Authorization", "SEPAY_WEBHOOK_UNAUTHORIZED");
         }
@@ -1265,7 +1275,8 @@ public class Service : IService
         var rawPayloadJson = JsonSerializer.Serialize(request);
 
         var matchedAccounts = await _dbContext.FinancialAccounts
-            .Where(x => x.ConnectionMode == "LinkedApi"
+            .Where(x => x.UserId == account.Id
+                        && x.ConnectionMode == "LinkedApi"
                         && x.IsActive
                         && x.ProviderCode == SePayProviderCode
                         && (x.ExternalAccountRef == accountRef

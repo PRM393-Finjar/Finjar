@@ -245,6 +245,15 @@ public class Service : IService
             throw AppValidationException.Unauthorized("User not found", "user", "USER_NOT_FOUND");
         }
 
+        var sepayApiKey = request.sepayApiKey?.Trim();
+        if (string.IsNullOrWhiteSpace(sepayApiKey))
+        {
+            throw AppValidationException.BadRequest("SePay API Key is required", "sepayApiKey", "SEPAY_API_KEY_REQUIRED");
+        }
+        
+        user.SePayWebhookApiKey = sepayApiKey;
+        _dbContext.Accounts.Update(user);
+
         var providerCode = request.providerCode?.Trim().ToUpperInvariant();
         if (providerCode != SePayProviderCode)
         {
@@ -305,7 +314,7 @@ public class Service : IService
         var financialAccount = new Repository.Entity.FinancialAccount
         {
             Id = Guid.NewGuid(),
-            Name = bankName,
+            Name = $"{bankName} {accountNumber}",
             AccountType = "Bank",
             ConnectionMode = "LinkedApi",
             ProviderCode = SePayProviderCode,
