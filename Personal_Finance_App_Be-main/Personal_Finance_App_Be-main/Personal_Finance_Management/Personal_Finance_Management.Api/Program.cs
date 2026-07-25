@@ -226,10 +226,7 @@ var app = builder.Build();
 
 // hien: khuc nay dung de tu dong apply database migration khi bien ApplyMigrations duoc bat
 app.ApplyDatabaseMigrations();
-if (app.Configuration.GetValue<bool>("SeedAccounts:Enabled"))
-{
-    await app.SeedConfiguredAccountsAsync();
-}
+await app.SeedConfiguredAccountsAsync();
 
 app.UseMiddleware<GlobalExceptionHandlerMiddleware>();
 
