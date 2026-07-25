@@ -44,6 +44,8 @@ services:
       MailOptions__Password: ${MailOptions__Password:-}
       MailOptions__Host: ${MailOptions__Host:-smtp.gmail.com}
       MailOptions__Port: ${MailOptions__Port:-587}
+      Email__BrevoApiKey: ${Email__BrevoApiKey:-}
+      Email__ResendApiKey: ${Email__ResendApiKey:-}
       PayOSOptions__ClientId: ${PAYOS_CLIENT_ID:-}
       PayOSOptions__ApiKey: ${PAYOS_API_KEY:-}
       PayOSOptions__ChecksumKey: ${PAYOS_CHECKSUM_KEY:-}

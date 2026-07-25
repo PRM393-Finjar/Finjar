@@ -73,6 +73,11 @@ services:
         value: uwu72909@gmail.com
       - key: MailOptions__DisplayName
         value: Finjar
+      # Render Free blocks SMTP — set Brevo API key (HTTPS). Keep MailOptions__Password unused on Free.
+      - key: Email__BrevoApiKey
+        sync: false
+      - key: Email__ResendApiKey
+        sync: false
       - key: MailOptions__Password
         sync: false
       - key: MailOptions__Host
