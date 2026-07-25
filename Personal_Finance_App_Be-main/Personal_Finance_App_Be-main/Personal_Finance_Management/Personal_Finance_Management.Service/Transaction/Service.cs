@@ -1343,11 +1343,9 @@ public class Service : IService
             UpdatedAt = DateTimeOffset.UtcNow
         });
 
-        if (request.accumulated.HasValue)
-        {
-            financialAccount.CurrentBalance = request.accumulated.Value;
-        }
-        else if (signedAmount > 0)
+        // Always apply transfer delta. SePay's "accumulated" field is unreliable on many
+        // banks (often 0 or a stale ledger) and was wiping linked-account balances to 0.
+        if (signedAmount > 0)
         {
             financialAccount.CurrentBalance += request.transferAmount;
         }

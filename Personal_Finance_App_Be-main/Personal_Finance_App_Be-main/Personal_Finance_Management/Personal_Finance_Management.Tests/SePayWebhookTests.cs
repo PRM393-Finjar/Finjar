@@ -17,7 +17,7 @@ public class SePayWebhookTests
     private const string AccountNumber = "0123456789";
 
     [Fact]
-    public async Task IncomeWebhook_CreatesIncomeTransaction_AndUsesAccumulatedBalance()
+    public async Task IncomeWebhook_CreatesIncomeTransaction_AndIncrementsBalance()
     {
         await using var db = CreateDbContext();
         var account = SeedSePayAccount(db, 10_000_000m);
@@ -37,7 +37,38 @@ public class SePayWebhookTests
         Assert.Equal("sepay:1001", transaction.ExternalTransactionId);
         Assert.Contains("\"transferAmount\":500000", transaction.RawPayloadJson);
         Assert.Equal(10_500_000m, updatedAccount.CurrentBalance);
-        Assert.Equal("Active", updatedAccount.SyncStatus);
+        Assert.Equal("Synced", updatedAccount.SyncStatus);
+    }
+
+    [Fact]
+    public async Task IncomeWebhook_IgnoresAccumulated_AndIncrementsByTransferAmount()
+    {
+        await using var db = CreateDbContext();
+        var account = SeedSePayAccount(db, 100_000m);
+        var service = CreateService(db);
+
+        await service.ProcessSePayWebhook(
+            CreateWebhookRequest(id: 1005, transferType: "in", amount: 50_000m, accumulated: 0m),
+            $"Apikey {WebhookApiKey}");
+
+        var updatedAccount = await db.FinancialAccounts.SingleAsync(x => x.Id == account.Id);
+        Assert.Equal(150_000m, updatedAccount.CurrentBalance);
+    }
+
+    [Fact]
+    public async Task IncomeWebhook_IgnoresStaleAccumulated_AndDoesNotResetBalance()
+    {
+        await using var db = CreateDbContext();
+        var account = SeedSePayAccount(db, 100_000m);
+        var service = CreateService(db);
+
+        // Even if SePay sends a non-zero but wrong accumulated, Finjar keeps delta accounting.
+        await service.ProcessSePayWebhook(
+            CreateWebhookRequest(id: 1006, transferType: "in", amount: 50_000m, accumulated: 50_000m),
+            $"Apikey {WebhookApiKey}");
+
+        var updatedAccount = await db.FinancialAccounts.SingleAsync(x => x.Id == account.Id);
+        Assert.Equal(150_000m, updatedAccount.CurrentBalance);
     }
 
     [Fact]
