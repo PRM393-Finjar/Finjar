@@ -12,6 +12,7 @@ public class Response
         public required string name { get; set; }
         public required string accountType { get; set; }
         public required string connectionMode { get; set; }
+        public required string? providerCode { get; set; }
         public required string? providerName { get; set; }
         public required string? maskedAccountNumber  { get; set; }
         public required string currency  { get; set; }

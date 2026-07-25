@@ -1343,9 +1343,9 @@ public class Service : IService
             UpdatedAt = DateTimeOffset.UtcNow
         });
 
-        if (request.accumulated.HasValue)
+        if (ShouldUseSePayAccumulatedBalance(request.accumulated, signedAmount, request.transferAmount))
         {
-            financialAccount.CurrentBalance = request.accumulated.Value;
+            financialAccount.CurrentBalance = request.accumulated!.Value;
         }
         else if (signedAmount > 0)
         {
@@ -1833,6 +1833,28 @@ public class Service : IService
         }
 
         return string.Equals(providedApiKey, configuredWebhookApiKey.Trim(), StringComparison.Ordinal);
+    }
+
+    private static bool ShouldUseSePayAccumulatedBalance(decimal? accumulated, decimal signedAmount, decimal transferAmount)
+    {
+        if (!accumulated.HasValue)
+        {
+            return false;
+        }
+
+        // SePay often sends accumulated=0 when the running balance is unavailable.
+        // Treating that as the real balance zeroes the account after every inbound transfer.
+        if (accumulated.Value <= 0)
+        {
+            return false;
+        }
+
+        if (signedAmount > 0 && accumulated.Value < transferAmount)
+        {
+            return false;
+        }
+
+        return true;
     }
 
     private static DateTimeOffset ParseSePayTransactionDate(string? transactionDate)
