@@ -56,6 +56,17 @@ public class SmtpEmailSender : IEmailSender
             throw new InvalidOperationException("Email:SmtpHost is required when UseSmtp is true.");
         }
 
+        if (string.IsNullOrWhiteSpace(_options.FromAddress))
+        {
+            throw new InvalidOperationException("Email:FromAddress is required when UseSmtp is true.");
+        }
+
+        if (!string.IsNullOrWhiteSpace(_options.SmtpUsername)
+            && string.IsNullOrWhiteSpace(_options.SmtpPassword))
+        {
+            throw new InvalidOperationException("Email:SmtpPassword or MailOptions__Password is required when SMTP username is set.");
+        }
+
         var message = new MimeMessage();
         message.From.Add(new MailboxAddress(_options.FromName, _options.FromAddress));
         message.To.Add(MailboxAddress.Parse(toEmail));
@@ -69,7 +80,7 @@ public class SmtpEmailSender : IEmailSender
             await client.ConnectAsync(
                 _options.SmtpHost,
                 _options.SmtpPort,
-                _options.SmtpUseSsl ? SecureSocketOptions.StartTls : SecureSocketOptions.Auto,
+                GetSecureSocketOptions(),
                 cancellationToken);
 
             if (!string.IsNullOrWhiteSpace(_options.SmtpUsername))
@@ -86,5 +97,17 @@ public class SmtpEmailSender : IEmailSender
             _logger.LogError(ex, "SMTP send failed -> To: {Email}, Host: {Host}:{Port}", toEmail, _options.SmtpHost, _options.SmtpPort);
             throw;
         }
+    }
+
+    private SecureSocketOptions GetSecureSocketOptions()
+    {
+        if (!_options.SmtpUseSsl)
+        {
+            return SecureSocketOptions.Auto;
+        }
+
+        return _options.SmtpPort == 465
+            ? SecureSocketOptions.SslOnConnect
+            : SecureSocketOptions.StartTls;
     }
 }

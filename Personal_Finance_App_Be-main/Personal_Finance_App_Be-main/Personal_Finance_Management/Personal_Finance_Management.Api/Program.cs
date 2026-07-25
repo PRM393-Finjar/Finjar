@@ -93,23 +93,34 @@ builder.Services.AddOptions<EmailOptions>()
     .Bind(builder.Configuration.GetSection(EmailOptions.SectionName))
     .PostConfigure<IConfiguration>((options, config) =>
     {
+        NormalizeEmailOptions(options);
+
         var mail = config.GetSection(LegacyMailOptions.SectionName).Get<LegacyMailOptions>();
-        if (mail is null
-            || string.IsNullOrWhiteSpace(mail.Host)
-            || string.IsNullOrWhiteSpace(mail.Password)
-            || string.IsNullOrWhiteSpace(mail.Mail))
+        if (mail is not null
+            && !string.IsNullOrWhiteSpace(mail.Host)
+            && !string.IsNullOrWhiteSpace(mail.Password)
+            && !string.IsNullOrWhiteSpace(mail.Mail))
         {
-            return;
+            options.UseSmtp = true;
+            options.FromAddress = mail.Mail.Trim();
+            options.FromName = string.IsNullOrWhiteSpace(mail.DisplayName) ? options.FromName : mail.DisplayName.Trim();
+            options.SmtpHost = mail.Host.Trim();
+            options.SmtpPort = mail.Port > 0 ? mail.Port : 587;
+            options.SmtpUsername = mail.Mail.Trim();
+            options.SmtpPassword = NormalizeSmtpPassword(mail.Password, mail.Host);
+            options.SmtpUseSsl = true;
         }
 
-        options.UseSmtp = true;
-        options.FromAddress = mail.Mail;
-        options.FromName = string.IsNullOrWhiteSpace(mail.DisplayName) ? options.FromName : mail.DisplayName;
-        options.SmtpHost = mail.Host;
-        options.SmtpPort = mail.Port > 0 ? mail.Port : 587;
-        options.SmtpUsername = mail.Mail;
-        options.SmtpPassword = mail.Password;
-        options.SmtpUseSsl = true;
+        if (!options.UseSmtp
+            && !string.IsNullOrWhiteSpace(options.SmtpHost)
+            && !string.IsNullOrWhiteSpace(options.SmtpPassword)
+            && (!string.IsNullOrWhiteSpace(options.SmtpUsername)
+                || !string.IsNullOrWhiteSpace(options.FromAddress)))
+        {
+            options.UseSmtp = true;
+        }
+
+        NormalizeEmailOptions(options);
     });
 
 builder.Services.AddScoped<SmtpEmailSender>();
@@ -294,4 +305,32 @@ static void LoadLocalDotEnvFile()
 
     Console.WriteLine("No .env file found in candidates.");
     Console.WriteLine("====================");
+}
+
+static void NormalizeEmailOptions(EmailOptions options)
+{
+    options.FromAddress = options.FromAddress.Trim();
+    options.FromName = options.FromName.Trim();
+    options.SmtpHost = options.SmtpHost?.Trim();
+    options.SmtpUsername = string.IsNullOrWhiteSpace(options.SmtpUsername)
+        ? options.FromAddress
+        : options.SmtpUsername.Trim();
+    options.SmtpPassword = NormalizeSmtpPassword(options.SmtpPassword, options.SmtpHost);
+}
+
+static string? NormalizeSmtpPassword(string? password, string? host)
+{
+    if (string.IsNullOrWhiteSpace(password))
+    {
+        return password;
+    }
+
+    var normalized = password.Trim();
+    if (!string.IsNullOrWhiteSpace(host)
+        && host.Contains("gmail.com", StringComparison.OrdinalIgnoreCase))
+    {
+        normalized = string.Concat(normalized.Where(c => !char.IsWhiteSpace(c)));
+    }
+
+    return normalized;
 }
