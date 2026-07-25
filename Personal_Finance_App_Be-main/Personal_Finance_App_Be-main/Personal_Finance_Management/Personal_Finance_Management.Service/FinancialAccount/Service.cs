@@ -37,6 +37,7 @@ public class Service : IService
             name = x.Name,
             accountType = x.AccountType,
             connectionMode = x.ConnectionMode,
+            providerCode = x.ProviderCode,
             providerName = x.ProviderName,
             maskedAccountNumber = x.MaskedAccountNumber,
             currency = x.Currency,

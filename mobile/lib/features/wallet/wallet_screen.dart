@@ -285,6 +285,7 @@ class _WalletScreenState extends State<WalletScreen>
     required String bankCode,
     required String accountNumber,
     required String accountName,
+    required String sepayApiKey,
     double currentBalance = 0,
   }) async {
     try {
@@ -293,6 +294,7 @@ class _WalletScreenState extends State<WalletScreen>
         'bankCode': bankCode,
         'accountNumber': accountNumber,
         'accountName': accountName,
+        'sepayApiKey': sepayApiKey,
         'currentBalance': currentBalance,
       });
       _fetchAccounts();
@@ -530,6 +532,7 @@ class _WalletScreenState extends State<WalletScreen>
     final balanceController = TextEditingController();
     final sePayAccountNumberController = TextEditingController();
     final sePayAccountNameController = TextEditingController();
+    final sePayApiKeyController = TextEditingController();
     String type = 'cash';
     String sePayBankCode = _sePayBanks.first['code']!;
 
@@ -617,6 +620,12 @@ class _WalletScreenState extends State<WalletScreen>
                       textCapitalization: TextCapitalization.words,
                     ),
                     const SizedBox(height: 12),
+                    BrutalInput(
+                      label: 'SePay API Key (Bảo mật)',
+                      hint: 'Ví dụ: AK_0123456789...',
+                      controller: sePayApiKeyController,
+                    ),
+                    const SizedBox(height: 12),
                     BrutalCurrencyInput(
                       label: 'So du hien tai',
                       hint: '1.000.000',
@@ -645,11 +654,13 @@ class _WalletScreenState extends State<WalletScreen>
                             sePayAccountNumberController.text.trim();
                         final accountName =
                             sePayAccountNameController.text.trim();
-                        if (accountNumber.isEmpty || accountName.isEmpty) {
+                        final sepayApiKey =
+                            sePayApiKeyController.text.trim();
+                        if (accountNumber.isEmpty || accountName.isEmpty || sepayApiKey.isEmpty) {
                           ScaffoldMessenger.of(context).showSnackBar(
                             const SnackBar(
                                 content: Text(
-                                    'Nhap day du so tai khoan va ten chu tai khoan.')),
+                                    'Vui lòng nhập đủ tài khoản, tên và SePay API Key.')),
                           );
                           return;
                         }
@@ -657,6 +668,7 @@ class _WalletScreenState extends State<WalletScreen>
                           bankCode: sePayBankCode,
                           accountNumber: accountNumber,
                           accountName: accountName,
+                          sepayApiKey: sepayApiKey,
                           currentBalance: balanceController.rawValue,
                         );
                         if (mounted) Navigator.pop(context);

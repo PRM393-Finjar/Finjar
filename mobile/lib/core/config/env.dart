@@ -4,7 +4,7 @@ class Env {
   ///
   /// Backend Render công khai (Finjar).
   static const String _productionApiBaseUrl =
-      'https://finjar-i2il.onrender.com/api/v1';
+      'https://finjar-gnlc.onrender.com/api/v1';
 
   /// Bật mock API: flutter run --dart-define=USE_MOCK_DATA=true
   static bool get useMockData {
