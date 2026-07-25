@@ -93,44 +93,82 @@ builder.Services.AddOptions<EmailOptions>()
     .Bind(builder.Configuration.GetSection(EmailOptions.SectionName))
     .PostConfigure<IConfiguration>((options, config) =>
     {
-        NormalizeEmailOptions(options);
+        // Prefer HTTPS providers. Read both config keys and raw env (Render injects Email__*).
+        options.BrevoApiKey = SanitizeSecret(FirstNonEmpty(
+            options.BrevoApiKey,
+            config["Email:BrevoApiKey"],
+            config["BREVO_API_KEY"],
+            Environment.GetEnvironmentVariable("Email__BrevoApiKey"),
+            Environment.GetEnvironmentVariable("BREVO_API_KEY")));
+        options.ResendApiKey = SanitizeSecret(FirstNonEmpty(
+            options.ResendApiKey,
+            config["Email:ResendApiKey"],
+            config["RESEND_API_KEY"],
+            Environment.GetEnvironmentVariable("Email__ResendApiKey"),
+            Environment.GetEnvironmentVariable("RESEND_API_KEY")));
 
         var mail = config.GetSection(LegacyMailOptions.SectionName).Get<LegacyMailOptions>();
-        if (mail is not null
+        if (mail is null || string.IsNullOrWhiteSpace(mail.Mail))
+        {
+            return;
+        }
+
+        options.FromAddress = mail.Mail.Trim();
+        options.FromName = string.IsNullOrWhiteSpace(mail.DisplayName) ? options.FromName : mail.DisplayName.Trim();
+
+        var hasHttpProvider = !string.IsNullOrWhiteSpace(options.BrevoApiKey)
+            || !string.IsNullOrWhiteSpace(options.ResendApiKey);
+        var onRender = !string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("RENDER"));
+
+        // Render Free blocks SMTP :25/:465/:587 — never enable SMTP there.
+        if (!hasHttpProvider
+            && !onRender
             && !string.IsNullOrWhiteSpace(mail.Host)
-            && !string.IsNullOrWhiteSpace(mail.Password)
-            && !string.IsNullOrWhiteSpace(mail.Mail))
+            && !string.IsNullOrWhiteSpace(mail.Password))
         {
             options.UseSmtp = true;
-            options.FromAddress = mail.Mail.Trim();
-            options.FromName = string.IsNullOrWhiteSpace(mail.DisplayName) ? options.FromName : mail.DisplayName.Trim();
             options.SmtpHost = mail.Host.Trim();
             options.SmtpPort = mail.Port > 0 ? mail.Port : 587;
             options.SmtpUsername = mail.Mail.Trim();
-            options.SmtpPassword = NormalizeSmtpPassword(mail.Password, mail.Host);
+            options.SmtpPassword = SanitizeSecret(mail.Password);
             options.SmtpUseSsl = true;
         }
-
-        if (!options.UseSmtp
-            && !string.IsNullOrWhiteSpace(options.SmtpHost)
-            && !string.IsNullOrWhiteSpace(options.SmtpPassword)
-            && (!string.IsNullOrWhiteSpace(options.SmtpUsername)
-                || !string.IsNullOrWhiteSpace(options.FromAddress)))
+        else if (hasHttpProvider || onRender)
         {
-            options.UseSmtp = true;
+            options.UseSmtp = false;
         }
-
-        NormalizeEmailOptions(options);
     });
 
+builder.Services.AddHttpClient<BrevoEmailSender>(client =>
+{
+    client.Timeout = TimeSpan.FromSeconds(30);
+});
+builder.Services.AddHttpClient<ResendEmailSender>(client =>
+{
+    client.Timeout = TimeSpan.FromSeconds(30);
+});
 builder.Services.AddScoped<SmtpEmailSender>();
 builder.Services.AddScoped<LoggingEmailSender>();
 builder.Services.AddScoped<IEmailSender>(sp =>
 {
     var options = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<EmailOptions>>().Value;
-    return options.UseSmtp
-        ? sp.GetRequiredService<SmtpEmailSender>()
-        : sp.GetRequiredService<LoggingEmailSender>();
+    // Prefer HTTPS providers (Render Free compatible) over SMTP.
+    if (!string.IsNullOrWhiteSpace(options.BrevoApiKey))
+    {
+        return sp.GetRequiredService<BrevoEmailSender>();
+    }
+
+    if (!string.IsNullOrWhiteSpace(options.ResendApiKey))
+    {
+        return sp.GetRequiredService<ResendEmailSender>();
+    }
+
+    if (options.UseSmtp)
+    {
+        return sp.GetRequiredService<SmtpEmailSender>();
+    }
+
+    return sp.GetRequiredService<LoggingEmailSender>();
 });
 
 builder.Services.AddScoped<EmailVerificationService.IService, EmailVerificationService.Service>();
@@ -202,10 +240,16 @@ var app = builder.Build();
 
     Console.WriteLine("===== MAIL CONFIG =====");
     Console.WriteLine($"IEmailSender resolved as: {resolvedSender.GetType().Name}");
+    Console.WriteLine($"Email.FromAddress: {emailOpts.FromAddress}");
+    Console.WriteLine(string.IsNullOrWhiteSpace(emailOpts.BrevoApiKey)
+        ? "Email.BrevoApiKey: EMPTY"
+        : "Email.BrevoApiKey: SET");
+    Console.WriteLine(string.IsNullOrWhiteSpace(emailOpts.ResendApiKey)
+        ? "Email.ResendApiKey: EMPTY"
+        : "Email.ResendApiKey: SET");
     Console.WriteLine($"Email.UseSmtp: {emailOpts.UseSmtp}");
     Console.WriteLine($"Email.SmtpHost: {emailOpts.SmtpHost}");
     Console.WriteLine($"Email.SmtpPort: {emailOpts.SmtpPort}");
-    Console.WriteLine($"Email.FromAddress: {emailOpts.FromAddress}");
     Console.WriteLine($"MailOptions.Mail: {mailSection["Mail"]}");
     Console.WriteLine($"MailOptions.Host: {mailSection["Host"]}");
     Console.WriteLine($"MailOptions.Port: {mailSection["Port"]}");
@@ -247,6 +291,30 @@ app.UseAuthorization();
 app.MapControllers();
 
 app.Run();
+
+static string? FirstNonEmpty(params string?[] values)
+{
+    foreach (var value in values)
+    {
+        if (!string.IsNullOrWhiteSpace(value))
+        {
+            return value.Trim();
+        }
+    }
+
+    return null;
+}
+
+static string? SanitizeSecret(string? value)
+{
+    if (string.IsNullOrWhiteSpace(value))
+    {
+        return null;
+    }
+
+    // Render textarea paste sometimes inserts newlines into API keys.
+    return string.Concat(value.Where(c => !char.IsWhiteSpace(c)));
+}
 
 static void LoadLocalDotEnvFile()
 {
@@ -302,32 +370,4 @@ static void LoadLocalDotEnvFile()
 
     Console.WriteLine("No .env file found in candidates.");
     Console.WriteLine("====================");
-}
-
-static void NormalizeEmailOptions(EmailOptions options)
-{
-    options.FromAddress = options.FromAddress.Trim();
-    options.FromName = options.FromName.Trim();
-    options.SmtpHost = options.SmtpHost?.Trim();
-    options.SmtpUsername = string.IsNullOrWhiteSpace(options.SmtpUsername)
-        ? options.FromAddress
-        : options.SmtpUsername.Trim();
-    options.SmtpPassword = NormalizeSmtpPassword(options.SmtpPassword, options.SmtpHost);
-}
-
-static string? NormalizeSmtpPassword(string? password, string? host)
-{
-    if (string.IsNullOrWhiteSpace(password))
-    {
-        return password;
-    }
-
-    var normalized = password.Trim();
-    if (!string.IsNullOrWhiteSpace(host)
-        && host.Contains("gmail.com", StringComparison.OrdinalIgnoreCase))
-    {
-        normalized = string.Concat(normalized.Where(c => !char.IsWhiteSpace(c)));
-    }
-
-    return normalized;
 }
