@@ -37,7 +37,26 @@ public class SePayWebhookTests
         Assert.Equal("sepay:1001", transaction.ExternalTransactionId);
         Assert.Contains("\"transferAmount\":500000", transaction.RawPayloadJson);
         Assert.Equal(10_500_000m, updatedAccount.CurrentBalance);
-        Assert.Equal("Active", updatedAccount.SyncStatus);
+        Assert.Equal("Synced", updatedAccount.SyncStatus);
+    }
+
+    [Fact]
+    public async Task IncomeWebhook_IgnoresZeroAccumulated_AndIncrementsBalance()
+    {
+        await using var db = CreateDbContext();
+        var account = SeedSePayAccount(db, 0m);
+        var service = CreateService(db);
+
+        await service.ProcessSePayWebhook(
+            CreateWebhookRequest(id: 1005, transferType: "in", amount: 10_000m, accumulated: 0m),
+            $"Apikey {WebhookApiKey}");
+
+        var transaction = await db.Transactions.SingleAsync();
+        var updatedAccount = await db.FinancialAccounts.SingleAsync(x => x.Id == account.Id);
+
+        Assert.Equal("Income", transaction.Type);
+        Assert.Equal(10_000m, transaction.TransactionsAmount);
+        Assert.Equal(10_000m, updatedAccount.CurrentBalance);
     }
 
     [Fact]
@@ -128,6 +147,7 @@ public class SePayWebhookTests
             LastName = "User",
             RoleId = Guid.NewGuid(),
             Status = "Active",
+            SePayWebhookApiKey = WebhookApiKey,
             CreatedAt = DateTimeOffset.UtcNow,
             UpdatedAt = DateTimeOffset.UtcNow
         };
