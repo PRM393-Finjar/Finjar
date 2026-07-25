@@ -113,8 +113,8 @@ builder.Services.AddOptions<EmailOptions>()
             return;
         }
 
-        options.FromAddress = mail.Mail.Trim();
-        options.FromName = string.IsNullOrWhiteSpace(mail.DisplayName) ? options.FromName : mail.DisplayName.Trim();
+        options.FromAddress = mail.Mail;
+        options.FromName = string.IsNullOrWhiteSpace(mail.DisplayName) ? options.FromName : mail.DisplayName;
 
         var hasHttpProvider = !string.IsNullOrWhiteSpace(options.BrevoApiKey)
             || !string.IsNullOrWhiteSpace(options.ResendApiKey);
@@ -127,10 +127,10 @@ builder.Services.AddOptions<EmailOptions>()
             && !string.IsNullOrWhiteSpace(mail.Password))
         {
             options.UseSmtp = true;
-            options.SmtpHost = mail.Host.Trim();
+            options.SmtpHost = mail.Host;
             options.SmtpPort = mail.Port > 0 ? mail.Port : 587;
-            options.SmtpUsername = mail.Mail.Trim();
-            options.SmtpPassword = SanitizeSecret(mail.Password);
+            options.SmtpUsername = mail.Mail;
+            options.SmtpPassword = mail.Password;
             options.SmtpUseSsl = true;
         }
         else if (hasHttpProvider || onRender)
@@ -270,7 +270,10 @@ var app = builder.Build();
 
 // hien: khuc nay dung de tu dong apply database migration khi bien ApplyMigrations duoc bat
 app.ApplyDatabaseMigrations();
-await app.SeedConfiguredAccountsAsync();
+if (app.Configuration.GetValue<bool>("SeedAccounts:Enabled"))
+{
+    await app.SeedConfiguredAccountsAsync();
+}
 
 app.UseMiddleware<GlobalExceptionHandlerMiddleware>();
 

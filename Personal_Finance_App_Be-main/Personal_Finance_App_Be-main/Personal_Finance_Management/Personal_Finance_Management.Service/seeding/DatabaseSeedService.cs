@@ -9,16 +9,6 @@ namespace Personal_Finance_Management.Service.Seeding;
 
 public class DatabaseSeedService
 {
-    private static readonly SeedAccountOptions DirectBankLinkTestAccount = new()
-    {
-        Username = "truongthainhuu",
-        Email = "truongthainhuu@gmail.com",
-        Password = "User@123456",
-        FirstName = "Thai Nhuu",
-        LastName = "Truong",
-        Role = AccountRole.User
-    };
-
     private readonly AppDbContext _dbContext;
     private readonly SeedAccountsOptions _options;
 
@@ -34,25 +24,14 @@ public class DatabaseSeedService
         await EnsureRoles(now, cancellationToken);
         await _dbContext.SaveChangesAsync(cancellationToken);
 
-        await EnsureAccount(
-            DirectBankLinkTestAccount,
-            now,
-            resetPassword: true,
-            cancellationToken);
-
         if (!_options.Enabled)
         {
-            await _dbContext.SaveChangesAsync(cancellationToken);
             return;
         }
 
         foreach (var accountOptions in _options.Accounts)
         {
-            await EnsureAccount(
-                accountOptions,
-                now,
-                resetPassword: _options.ResetPasswords,
-                cancellationToken);
+            await EnsureAccount(accountOptions, now, cancellationToken);
         }
 
         await _dbContext.SaveChangesAsync(cancellationToken);
@@ -103,7 +82,6 @@ public class DatabaseSeedService
     private async Task EnsureAccount(
         SeedAccountOptions accountOptions,
         DateTimeOffset now,
-        bool resetPassword,
         CancellationToken cancellationToken)
     {
         var username = accountOptions.Username.Trim();
@@ -163,7 +141,7 @@ public class DatabaseSeedService
         account.IsEmailVerified = true;
         account.UpdatedAt = now;
 
-        if (resetPassword)
+        if (_options.ResetPasswords)
         {
             account.PasswordHash = BCrypt.Net.BCrypt.HashPassword(accountOptions.Password, 12);
         }
